@@ -14,6 +14,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material.icons.rounded.BlurOn
+import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Opacity
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.SpaceDashboard
@@ -77,6 +78,7 @@ fun AppearanceScreen() {
                 item { OptionRow("Glass opacity", GlassOpacity.entries, prefs.glassOpacity, { it.label }, { v -> edit { p.setGlassOpacity(v) } }, Icons.Rounded.Opacity) }
                 item { OptionRow("Backdrop blur", BlurLevel.entries, prefs.blurLevel, { it.label }, { v -> edit { p.setBlurLevel(v) } }, Icons.Rounded.BlurOn) }
                 item { OptionRow("Dock size", DockSize.entries, prefs.dockSize, { it.label }, { v -> edit { p.setDockSize(v) } }, Icons.Rounded.SpaceDashboard) }
+                item { OptionRow("Lyrics", listOf(true, false), prefs.showLyrics, { if (it) "On" else "Off" }, { v -> edit { p.setShowLyrics(v) } }, Icons.Rounded.Lyrics) }
                 item { OptionRow("Full-screen Now Playing", listOf(true, false), prefs.autoNowPlaying, { if (it) "When music starts" else "Only when opened" }, { v -> edit { p.setAutoNowPlaying(v) } }, Icons.Rounded.Fullscreen) }
             }
             Spacer(Modifier.width(48.dp))

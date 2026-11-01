@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.Context
 import com.nathaniel.tvhome.apps.AppRepository
 import com.nathaniel.tvhome.apps.FavouriteApps
+import com.nathaniel.tvhome.lyrics.LyricsRepository
 import com.nathaniel.tvhome.media.MediaRepository
 import com.nathaniel.tvhome.prefs.PreferencesRepository
 import com.nathaniel.tvhome.system.SystemSettings
@@ -47,6 +48,7 @@ class AppContainer(context: Context) {
     val weather = WeatherRepository(scope, preferences.preferences.map { it.weatherLocation })
     val scenes = SceneController(scope, wallpapers, preferences.preferences)
     val systemSettings = SystemSettings(context)
+    val lyrics = LyricsRepository(scope, media.state, preferences.preferences.map { it.showLyrics })
 
     init {
         initialiseDock()

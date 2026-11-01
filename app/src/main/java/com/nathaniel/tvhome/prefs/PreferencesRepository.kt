@@ -40,6 +40,7 @@ class PreferencesRepository(context: Context, scope: CoroutineScope) {
         val weatherLon = doublePreferencesKey("weather_lon")
         val autoNowPlaying = booleanPreferencesKey("auto_now_playing")
         val rotateWallpapers = booleanPreferencesKey("rotate_wallpapers")
+        val showLyrics = booleanPreferencesKey("show_lyrics")
     }
 
     val preferences: StateFlow<UserPreferences> = store.data
@@ -72,6 +73,7 @@ class PreferencesRepository(context: Context, scope: CoroutineScope) {
             weatherLocation = location,
             autoNowPlaying = p[Keys.autoNowPlaying] ?: defaults.autoNowPlaying,
             rotateWallpapers = p[Keys.rotateWallpapers] ?: defaults.rotateWallpapers,
+            showLyrics = p[Keys.showLyrics] ?: defaults.showLyrics,
         )
     }
 
@@ -85,6 +87,7 @@ class PreferencesRepository(context: Context, scope: CoroutineScope) {
     suspend fun setShowSeconds(v: Boolean) = store.edit { it[Keys.showSeconds] = v }
     suspend fun setAutoNowPlaying(v: Boolean) = store.edit { it[Keys.autoNowPlaying] = v }
     suspend fun setRotateWallpapers(v: Boolean) = store.edit { it[Keys.rotateWallpapers] = v }
+    suspend fun setShowLyrics(v: Boolean) = store.edit { it[Keys.showLyrics] = v }
 
     suspend fun setWeatherLocation(location: WeatherLocation) = store.edit {
         it[Keys.weatherName] = location.name

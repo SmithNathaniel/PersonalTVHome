@@ -2,6 +2,9 @@ package com.nathaniel.tvhome.ui.home
 
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.runtime.rememberCoroutineScope
@@ -72,6 +75,8 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
+import com.nathaniel.tvhome.lyrics.Lyrics
+import com.nathaniel.tvhome.lyrics.LyricsState
 import com.nathaniel.tvhome.media.MediaState
 import com.nathaniel.tvhome.media.NowPlaying
 import com.nathaniel.tvhome.ui.LocalContainer
@@ -173,12 +178,30 @@ private fun ActiveWidget(
                     SourceBadge(np, iconSize = 12.dp, textSize = 9.sp)
                 }
             }
+            WidgetLyrics(np)
             Spacer(Modifier.height(8.dp))
             Scrubber(np, position, Modifier.padding(horizontal = 4.dp), barHeight = 3.dp, labelSize = 9.sp)
             Spacer(Modifier.height(6.dp))
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 TransportControls(np, onPlayPause, onNext, onPrevious, playSize = 30.dp, skipSize = 26.dp, spacing = 16.dp)
             }
+        }
+    }
+}
+
+/** The current synced lyric line, shown only when lyrics are on and available for this song. */
+@Composable
+private fun WidgetLyrics(np: NowPlaying) {
+    val container = LocalContainer.current
+    val state by container.lyrics.state.collectAsStateWithLifecycle()
+    val synced = (state as? LyricsState.Ready)?.takeIf { it.trackKey == np.trackKey }?.lyrics as? Lyrics.Synced
+    AnimatedVisibility(
+        visible = synced != null,
+        enter = fadeIn(tween(300)) + expandVertically(tween(320)),
+        exit = fadeOut(tween(200)) + shrinkVertically(tween(260)),
+    ) {
+        if (synced != null) {
+            WidgetLyricLine(np, synced, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 8.dp))
         }
     }
 }

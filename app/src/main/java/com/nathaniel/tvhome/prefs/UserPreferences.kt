@@ -39,4 +39,6 @@ data class UserPreferences(
     val autoNowPlaying: Boolean = true,
     /** Cycle through the wallpaper collection every 10 minutes. */
     val rotateWallpapers: Boolean = true,
+    /** Show synced lyrics (from LRCLIB) in the Now Playing widget and player. */
+    val showLyrics: Boolean = true,
 )

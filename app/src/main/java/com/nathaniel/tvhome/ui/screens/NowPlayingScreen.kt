@@ -1,6 +1,15 @@
 package com.nathaniel.tvhome.ui.screens
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.ui.unit.IntSize
+import com.nathaniel.tvhome.lyrics.LyricsState
+import com.nathaniel.tvhome.ui.home.LyricsPanel
+import kotlinx.coroutines.launch
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -128,59 +137,106 @@ internal fun ReadabilityShade() {
 @Composable
 internal fun NowPlayingContent(np: NowPlaying) {
     val container = LocalContainer.current
+    val prefs by container.preferences.preferences.collectAsStateWithLifecycle()
+    val lyricsState by container.lyrics.state.collectAsStateWithLifecycle()
     val playFocus = remember { FocusRequester() }
     val position = rememberPosition(np)
     LaunchedEffect(Unit) { awaitFrame(); runCatching { playFocus.requestFocus() } }
+
+    val lyrics = (lyricsState as? LyricsState.Ready)?.takeIf { it.trackKey == np.trackKey }?.lyrics
+    val lyricsVisible = prefs.showLyrics && lyrics != null
+    val titleSize by animateFloatAsState(if (lyricsVisible) 28f else 40f, tween(450, easing = FastOutSlowInEasing), label = "titleSize")
+    val layoutSpec = tween<IntSize>(480, easing = FastOutSlowInEasing)
 
     Row(
         Modifier.fillMaxSize().padding(horizontal = 96.dp, vertical = 64.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        AnimatedContent(
-            np.trackKey,
-            transitionSpec = { (fadeIn(tween(500)) + scaleIn(tween(500, easing = FastOutSlowInEasing), initialScale = 0.94f)) togetherWith fadeOut(tween(250)) },
-            label = "npArt",
-        ) { _ ->
-            val shape = RoundedCornerShape(18.dp)
-            Artwork(np, 300.dp, shape, Modifier.shadow(48.dp, shape, ambientColor = Color.Black, spotColor = Color.Black))
+        // Large artwork folds away when lyrics take the stage.
+        AnimatedVisibility(
+            visible = !lyricsVisible,
+            enter = fadeIn(tween(400, delayMillis = 120)) + expandHorizontally(layoutSpec, expandFrom = Alignment.Start),
+            exit = fadeOut(tween(200)) + shrinkHorizontally(layoutSpec, shrinkTowards = Alignment.Start),
+        ) {
+            Row {
+                AnimatedContent(
+                    np.trackKey,
+                    transitionSpec = { (fadeIn(tween(500)) + scaleIn(tween(500, easing = FastOutSlowInEasing), initialScale = 0.94f)) togetherWith fadeOut(tween(250)) },
+                    label = "npArt",
+                ) { _ ->
+                    val shape = RoundedCornerShape(18.dp)
+                    Artwork(np, 300.dp, shape, Modifier.shadow(48.dp, shape, ambientColor = Color.Black, spotColor = Color.Black))
+                }
+                Spacer(Modifier.width(56.dp))
+            }
         }
-        Spacer(Modifier.width(56.dp))
-        Column(Modifier.weight(1f)) {
-            SourceBadge(np, iconSize = 22.dp, textSize = 15.sp)
+
+        Column(if (lyricsVisible) Modifier.width(340.dp) else Modifier.weight(1f)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                SourceBadge(np, iconSize = 22.dp, textSize = 15.sp)
+                Spacer(Modifier.weight(1f))
+                LyricsStatus(prefs.showLyrics, lyricsState, np)
+                Spacer(Modifier.width(10.dp))
+                GlassButton(
+                    text = null,
+                    icon = Icons.Rounded.Lyrics,
+                    onClick = { container.scope.launch { container.preferences.setShowLyrics(!prefs.showLyrics) } },
+                    selected = prefs.showLyrics,
+                    height = SMALL_BUTTON,
+                )
+                Spacer(Modifier.width(10.dp))
+                GlassButton(
+                    text = null,
+                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                    onClick = { container.media.openSourceApp() },
+                    height = SMALL_BUTTON,
+                )
+            }
             Spacer(Modifier.height(14.dp))
-            AnimatedContent(np.trackKey, transitionSpec = { fadeIn(tween(450)) togetherWith fadeOut(tween(200)) }, label = "npText") { _ ->
-                Column {
-                    TrackTitle(
-                        np.title,
-                        Scenic.Title.copy(fontSize = 40.sp, lineHeight = 46.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp, shadow = PlayerShadow),
-                        focused = false,
-                        maxLines = 2,
-                    )
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        np.artist,
-                        style = Scenic.Body.copy(fontSize = 24.sp, fontWeight = FontWeight.Medium, color = Scenic.TextPrimary.copy(alpha = 0.72f), shadow = PlayerShadow),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (!np.album.isNullOrBlank()) {
-                        Spacer(Modifier.height(2.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                // A small cover sits beside the title while lyrics are showing.
+                AnimatedVisibility(
+                    visible = lyricsVisible,
+                    enter = fadeIn(tween(400, delayMillis = 150)) + expandHorizontally(layoutSpec),
+                    exit = fadeOut(tween(150)) + shrinkHorizontally(layoutSpec),
+                ) {
+                    Row {
+                        val shape = RoundedCornerShape(12.dp)
+                        Artwork(np, 84.dp, shape, Modifier.shadow(20.dp, shape))
+                        Spacer(Modifier.width(16.dp))
+                    }
+                }
+                AnimatedContent(np.trackKey, transitionSpec = { fadeIn(tween(450)) togetherWith fadeOut(tween(200)) }, label = "npText") { _ ->
+                    Column {
+                        TrackTitle(
+                            np.title,
+                            Scenic.Title.copy(fontSize = titleSize.sp, lineHeight = (titleSize * 1.15f).sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp, shadow = PlayerShadow),
+                            focused = false,
+                            maxLines = 2,
+                        )
+                        Spacer(Modifier.height(6.dp))
                         Text(
-                            np.album,
-                            style = Scenic.Body.copy(fontSize = 18.sp, color = Scenic.TextPrimary.copy(alpha = 0.5f), shadow = PlayerShadow),
+                            np.artist,
+                            style = Scenic.Body.copy(fontSize = (titleSize * 0.6f).sp, fontWeight = FontWeight.Medium, color = Scenic.TextPrimary.copy(alpha = 0.72f), shadow = PlayerShadow),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (!np.album.isNullOrBlank() && !lyricsVisible) {
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                np.album,
+                                style = Scenic.Body.copy(fontSize = 18.sp, color = Scenic.TextPrimary.copy(alpha = 0.5f), shadow = PlayerShadow),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }
             Spacer(Modifier.height(36.dp))
             Scrubber(np, position, Modifier.fillMaxWidth(), barHeight = 6.dp, labelSize = 14.sp)
             Spacer(Modifier.height(22.dp))
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                // Balances the open-app button so the transport controls stay centred under the scrubber.
-                Spacer(Modifier.width(OPEN_BUTTON_SIZE))
-                Spacer(Modifier.weight(1f))
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 TransportControls(
                     np,
                     container.media::playPause,
@@ -192,16 +248,37 @@ internal fun NowPlayingContent(np: NowPlaying) {
                     expressive = true,
                     playModifier = Modifier.focusRequester(playFocus),
                 )
-                Spacer(Modifier.weight(1f))
-                GlassButton(
-                    text = null,
-                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
-                    onClick = { container.media.openSourceApp() },
-                    height = OPEN_BUTTON_SIZE,
-                )
+            }
+        }
+
+        // Lyrics slide in from the right.
+        AnimatedVisibility(
+            visible = lyricsVisible,
+            enter = fadeIn(tween(450, delayMillis = 150)) + expandHorizontally(layoutSpec, expandFrom = Alignment.End),
+            exit = fadeOut(tween(200)) + shrinkHorizontally(layoutSpec, shrinkTowards = Alignment.End),
+            modifier = Modifier.weight(1f, fill = false),
+        ) {
+            Row {
+                Spacer(Modifier.width(56.dp))
+                lyrics?.let { LyricsPanel(np, it, Modifier.fillMaxWidth().height(LYRICS_HEIGHT)) }
             }
         }
     }
 }
 
-private val OPEN_BUTTON_SIZE = 44.dp
+/** Quiet status next to the lyrics button: searching, or nothing found for this song. */
+@Composable
+private fun LyricsStatus(enabled: Boolean, state: LyricsState, np: NowPlaying) {
+    val text = when {
+        !enabled -> null
+        state is LyricsState.Loading && state.trackKey == np.trackKey -> "Finding lyrics…"
+        state is LyricsState.Unavailable && state.trackKey == np.trackKey -> "No lyrics"
+        else -> null
+    }
+    AnimatedContent(text, transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(200)) }, label = "lyricsStatus") { t ->
+        if (t != null) Text(t, style = Scenic.Caption.copy(fontSize = 13.sp, color = Scenic.TextPrimary.copy(alpha = 0.6f), shadow = PlayerShadow))
+    }
+}
+
+private val SMALL_BUTTON = 40.dp
+private val LYRICS_HEIGHT = 400.dp
