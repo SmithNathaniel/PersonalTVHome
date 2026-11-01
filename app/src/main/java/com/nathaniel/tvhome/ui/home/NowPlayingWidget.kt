@@ -153,19 +153,19 @@ private fun ActiveWidget(
     val focused by interaction.collectIsFocusedAsState()
     val highlight by animateColorAsState(if (focused) Color.White.copy(alpha = 0.16f) else Color.Transparent, tween(180), label = "rowFocus")
 
-    GlassSurface(RoundedCornerShape(19.dp), modifier = Modifier.width(250.dp), tintBoost = -0.06f, elevation = 16.dp) {
-        Column(Modifier.padding(10.dp)) {
+    GlassSurface(RoundedCornerShape(17.dp), modifier = Modifier.width(236.dp), tintBoost = -0.06f, elevation = 14.dp) {
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 7.dp)) {
             Row(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(14.dp))
                     .background(highlight)
                     .tvClickable(interaction, onClick = onOpen)
-                    .padding(4.dp),
+                    .padding(3.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Artwork(np, 46.dp, RoundedCornerShape(10.dp), Modifier.shadow(8.dp, RoundedCornerShape(10.dp)))
-                Spacer(Modifier.width(10.dp))
+                Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
                     TrackTitle(np.title, Scenic.Label.copy(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 16.sp, shadow = PlayerShadow), focused)
                     Text(
@@ -174,16 +174,16 @@ private fun ActiveWidget(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    Spacer(Modifier.height(3.dp))
+                    Spacer(Modifier.height(2.dp))
                     SourceBadge(np, iconSize = 12.dp, textSize = 9.sp)
                 }
             }
             WidgetLyrics(np)
-            Spacer(Modifier.height(8.dp))
-            Scrubber(np, position, Modifier.padding(horizontal = 4.dp), barHeight = 3.dp, labelSize = 9.sp)
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(5.dp))
+            Scrubber(np, position, Modifier.padding(horizontal = 3.dp), barHeight = 3.dp, labelSize = 9.sp)
+            Spacer(Modifier.height(2.dp))
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                TransportControls(np, onPlayPause, onNext, onPrevious, playSize = 30.dp, skipSize = 26.dp, spacing = 16.dp)
+                TransportControls(np, onPlayPause, onNext, onPrevious, playSize = 30.dp, skipSize = 26.dp, spacing = 14.dp)
             }
         }
     }
@@ -201,7 +201,7 @@ private fun WidgetLyrics(np: NowPlaying) {
         exit = fadeOut(tween(200)) + shrinkVertically(tween(260)),
     ) {
         if (synced != null) {
-            WidgetLyricLine(np, synced, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(start = 4.dp, end = 4.dp, top = 8.dp))
+            WidgetLyricLine(np, synced, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(start = 3.dp, end = 3.dp, top = 5.dp))
         }
     }
 }
