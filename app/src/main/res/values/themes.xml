@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.PersonalTVHome" parent="android:Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/scenic_night</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowShowWallpaper">false</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:windowDisablePreview">false</item>
+        <item name="android:colorBackgroundCacheHint">@null</item>
+    </style>
+</resources>

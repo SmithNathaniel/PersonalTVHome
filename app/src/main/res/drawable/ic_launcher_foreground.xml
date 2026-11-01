@@ -1,0 +1,8 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Mountain range under a soft sun: the Scenic Glass mark -->
+    <path android:fillColor="#FFF4E3C1" android:pathData="M54,38m-9,0a9,9 0,1 1,18 0a9,9 0,1 1,-18 0" />
+    <path android:fillColor="#B3FFFFFF" android:pathData="M26,72 L44,50 L54,61 L64,47 L82,72 Z" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M30,76 L78,76 A4,4 0 0 1 78,80 L30,80 A4,4 0 0 1 30,76 Z" />
+</vector>
