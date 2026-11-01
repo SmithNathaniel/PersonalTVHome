@@ -2,6 +2,15 @@ package com.nathaniel.tvhome.ui.home
 
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedContent
+import kotlinx.coroutines.launch
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -139,8 +148,8 @@ private fun ActiveWidget(
     val focused by interaction.collectIsFocusedAsState()
     val highlight by animateColorAsState(if (focused) Color.White.copy(alpha = 0.16f) else Color.Transparent, tween(180), label = "rowFocus")
 
-    GlassSurface(RoundedCornerShape(22.dp), modifier = Modifier.width(290.dp), tintBoost = -0.06f, elevation = 18.dp) {
-        Column(Modifier.padding(12.dp)) {
+    GlassSurface(RoundedCornerShape(19.dp), modifier = Modifier.width(250.dp), tintBoost = -0.06f, elevation = 16.dp) {
+        Column(Modifier.padding(10.dp)) {
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -150,25 +159,25 @@ private fun ActiveWidget(
                     .padding(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Artwork(np, 54.dp, RoundedCornerShape(11.dp), Modifier.shadow(10.dp, RoundedCornerShape(11.dp)))
-                Spacer(Modifier.width(12.dp))
+                Artwork(np, 46.dp, RoundedCornerShape(10.dp), Modifier.shadow(8.dp, RoundedCornerShape(10.dp)))
+                Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    TrackTitle(np.title, Scenic.Label.copy(fontWeight = FontWeight.SemiBold, fontSize = 14.sp, lineHeight = 18.sp, shadow = PlayerShadow), focused)
+                    TrackTitle(np.title, Scenic.Label.copy(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 16.sp, shadow = PlayerShadow), focused)
                     Text(
                         np.artist,
-                        style = Scenic.Caption.copy(fontSize = 12.sp, lineHeight = 15.sp, color = Scenic.TextPrimary.copy(alpha = 0.72f), shadow = PlayerShadow),
+                        style = Scenic.Caption.copy(fontSize = 11.sp, lineHeight = 14.sp, color = Scenic.TextPrimary.copy(alpha = 0.72f), shadow = PlayerShadow),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
                     Spacer(Modifier.height(3.dp))
-                    SourceBadge(np, iconSize = 13.dp, textSize = 10.sp)
+                    SourceBadge(np, iconSize = 12.dp, textSize = 9.sp)
                 }
             }
-            Spacer(Modifier.height(10.dp))
-            Scrubber(np, position, Modifier.padding(horizontal = 4.dp), barHeight = 4.dp, labelSize = 10.sp)
+            Spacer(Modifier.height(8.dp))
+            Scrubber(np, position, Modifier.padding(horizontal = 4.dp), barHeight = 3.dp, labelSize = 9.sp)
             Spacer(Modifier.height(6.dp))
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                TransportControls(np, onPlayPause, onNext, onPrevious, playSize = 34.dp, skipSize = 30.dp, spacing = 18.dp)
+                TransportControls(np, onPlayPause, onNext, onPrevious, playSize = 30.dp, skipSize = 26.dp, spacing = 16.dp)
             }
         }
     }
@@ -254,11 +263,19 @@ internal fun TransportControls(
     spacing: Dp,
     modifier: Modifier = Modifier,
     playModifier: Modifier = Modifier,
+    /** Richer motion for the full-screen player: press bounce, glow halo, icon morph and skip nudge. */
+    expressive: Boolean = false,
 ) {
     Row(modifier, horizontalArrangement = Arrangement.spacedBy(spacing), verticalAlignment = Alignment.CenterVertically) {
-        GlyphButton(Icons.Rounded.FastRewind, "Previous", skipSize, onPrevious, enabled = np.canSkipPrevious)
-        GlyphButton(if (np.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (np.isPlaying) "Pause" else "Play", playSize, onPlayPause, modifier = playModifier)
-        GlyphButton(Icons.Rounded.FastForward, "Next", skipSize, onNext, enabled = np.canSkipNext)
+        if (expressive) {
+            ExpressiveButton(Icons.Rounded.FastRewind, "Previous", skipSize, onPrevious, enabled = np.canSkipPrevious, nudge = -1)
+            ExpressiveButton(if (np.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (np.isPlaying) "Pause" else "Play", playSize, onPlayPause, modifier = playModifier)
+            ExpressiveButton(Icons.Rounded.FastForward, "Next", skipSize, onNext, enabled = np.canSkipNext, nudge = 1)
+        } else {
+            GlyphButton(Icons.Rounded.FastRewind, "Previous", skipSize, onPrevious, enabled = np.canSkipPrevious)
+            GlyphButton(if (np.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (np.isPlaying) "Pause" else "Play", playSize, onPlayPause, modifier = playModifier)
+            GlyphButton(Icons.Rounded.FastForward, "Next", skipSize, onNext, enabled = np.canSkipNext)
+        }
     }
 }
 
@@ -284,5 +301,88 @@ private fun GlyphButton(icon: ImageVector, description: String, size: Dp, onClic
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(size * 0.62f))
+    }
+}
+
+/**
+ * Full-screen player button:
+ * - focus: springs up with a soft white halo and the disc fills in,
+ * - press: squashes down and bounces back,
+ * - play/pause: the glyph morphs with a scale-and-fade,
+ * - skip: the arrows nudge in their direction.
+ */
+@Composable
+private fun ExpressiveButton(
+    icon: ImageVector,
+    description: String,
+    size: Dp,
+    onClick: () -> Unit,
+    enabled: Boolean = true,
+    nudge: Int = 0,
+    modifier: Modifier = Modifier,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val pressed by interaction.collectIsPressedAsState()
+    val scope = rememberCoroutineScope()
+    val bounce = remember { Animatable(1f) }
+    val shift = remember { Animatable(0f) }
+
+    val focusScale by animateFloatAsState(if (focused) 1.16f else 1f, spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow), label = "xFocus")
+    val pressScale by animateFloatAsState(if (pressed) 0.88f else 1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessHigh), label = "xPress")
+    val fill by animateFloatAsState(if (focused) 1f else 0f, tween(220), label = "xFill")
+    val halo by animateFloatAsState(if (focused) 1f else 0f, tween(360), label = "xHalo")
+    val tint = lerp(if (enabled) Scenic.TextPrimary else Scenic.TextPrimary.copy(alpha = 0.3f), Color(0xFF111111), fill)
+
+    Box(modifier.size(size * 1.5f), contentAlignment = Alignment.Center) {
+        // Soft glow that blooms behind the focused button.
+        Canvas(Modifier.size(size * 1.5f).graphicsLayer { alpha = halo }) {
+            drawCircle(
+                Brush.radialGradient(listOf(Color.White.copy(alpha = 0.32f), Color.Transparent), radius = this.size.minDimension / 2),
+            )
+        }
+        Box(
+            Modifier
+                .size(size)
+                .graphicsLayer {
+                    val s = focusScale * pressScale * bounce.value
+                    scaleX = s
+                    scaleY = s
+                }
+                .shadow((16 * fill).dp, CircleShape, clip = false)
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.12f * (1 - fill) + fill))
+                .tvClickable(interaction) {
+                    if (!enabled) return@tvClickable
+                    onClick()
+                    scope.launch {
+                        bounce.snapTo(0.86f)
+                        bounce.animateTo(1f, spring(dampingRatio = 0.4f, stiffness = Spring.StiffnessMedium))
+                    }
+                    if (nudge != 0) scope.launch {
+                        shift.animateTo(nudge.toFloat(), tween(110))
+                        shift.animateTo(0f, spring(dampingRatio = 0.45f, stiffness = Spring.StiffnessMediumLow))
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            AnimatedContent(
+                targetState = icon,
+                transitionSpec = {
+                    (fadeIn(tween(180)) + scaleIn(tween(260, easing = FastOutSlowInEasing), initialScale = 0.6f)) togetherWith
+                        (fadeOut(tween(120)) + scaleOut(tween(180), targetScale = 0.6f))
+                },
+                label = "xIcon",
+            ) { glyph ->
+                Icon(
+                    glyph,
+                    contentDescription = description,
+                    tint = tint,
+                    modifier = Modifier
+                        .size(size * 0.56f)
+                        .graphicsLayer { translationX = shift.value * size.toPx() * 0.12f },
+                )
+            }
+        }
     }
 }

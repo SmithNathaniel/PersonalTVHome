@@ -33,11 +33,9 @@ import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,7 +48,6 @@ import com.nathaniel.tvhome.ui.LocalContainer
 import com.nathaniel.tvhome.ui.components.EmptyState
 import com.nathaniel.tvhome.ui.components.GlassButton
 import com.nathaniel.tvhome.ui.components.GlassSurface
-import com.nathaniel.tvhome.ui.components.LocalBackdrop
 import com.nathaniel.tvhome.ui.home.Artwork
 import com.nathaniel.tvhome.ui.home.PlayerShadow
 import com.nathaniel.tvhome.ui.home.Scrubber
@@ -62,7 +59,6 @@ import com.nathaniel.tvhome.ui.navigation.LocalNavigator
 import com.nathaniel.tvhome.ui.theme.Scenic
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
-import kotlin.math.roundToInt
 
 @Composable
 fun NowPlayingScreen() {
@@ -84,7 +80,7 @@ fun NowPlayingScreen() {
     }
 
     Box(Modifier.fillMaxSize()) {
-        FrostedWallpaper()
+        ReadabilityShade()
         if (active != null) {
             NowPlayingContent(active.nowPlaying)
         } else {
@@ -120,20 +116,12 @@ fun NowPlayingScreen() {
     }
 }
 
-/**
- * Apple-style frosted background built from the user's own wallpaper (never album art):
- * the pre-blurred wallpaper, deepened so text and artwork stand out.
- */
+/** Gentle shading over the scenic wallpaper so the large text stays readable; the photo stays visible. */
 @Composable
-internal fun FrostedWallpaper() {
-    val backdrop = LocalBackdrop.current
-    val glass = backdrop.current?.glass
+internal fun ReadabilityShade() {
     Canvas(Modifier.fillMaxSize().graphicsLayer()) {
-        if (glass != null) {
-            drawImage(glass, dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()), filterQuality = FilterQuality.Low)
-        }
-        drawRect(Color.Black.copy(alpha = 0.42f))
-        drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f)), startY = size.height * 0.55f))
+        drawRect(Brush.horizontalGradient(listOf(Color.Black.copy(alpha = 0.50f), Color.Black.copy(alpha = 0.18f))))
+        drawRect(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.35f)), startY = size.height * 0.6f))
     }
 }
 
@@ -198,6 +186,7 @@ internal fun NowPlayingContent(np: NowPlaying) {
                     playSize = 72.dp,
                     skipSize = 60.dp,
                     spacing = 36.dp,
+                    expressive = true,
                     modifier = Modifier.align(Alignment.Center),
                     playModifier = Modifier.focusRequester(playFocus),
                 )
