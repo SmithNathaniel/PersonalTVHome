@@ -1,6 +1,19 @@
 package com.nathaniel.tvhome.ui.screens
 
 import androidx.compose.animation.AnimatedContent
+import kotlin.math.roundToInt
+import androidx.compose.ui.util.lerp
+import androidx.compose.ui.unit.lerp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.LayoutCoordinates
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.animation.core.CubicBezierEasing
 import com.nathaniel.tvhome.ui.components.tvClickable
 import com.nathaniel.tvhome.ui.components.FocusSpring
 import androidx.tv.material3.Icon
@@ -12,12 +25,8 @@ import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.expandHorizontally
-import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.material.icons.rounded.Lyrics
-import androidx.compose.ui.unit.IntSize
 import com.nathaniel.tvhome.lyrics.LyricsState
 import com.nathaniel.tvhome.ui.home.LyricsPanel
 import kotlinx.coroutines.launch
@@ -154,126 +163,167 @@ internal fun NowPlayingContent(np: NowPlaying) {
     val position = rememberPosition(np)
     LaunchedEffect(Unit) { awaitFrame(); runCatching { playFocus.requestFocus() } }
 
-    val lyrics = (lyricsState as? LyricsState.Ready)?.takeIf { it.trackKey == np.trackKey }?.lyrics
-    val lyricsVisible = prefs.showLyrics && lyrics != null
-    val titleSize by animateFloatAsState(if (lyricsVisible) 24f else 34f, tween(450, easing = FastOutSlowInEasing), label = "titleSize")
-    val layoutSpec = tween<IntSize>(480, easing = FastOutSlowInEasing)
+    val readyLyrics = (lyricsState as? LyricsState.Ready)?.takeIf { it.trackKey == np.trackKey }?.lyrics
+    val lyricsVisible = prefs.showLyrics && readyLyrics != null
+    // Keep the last lyrics so they can animate out after being switched off.
+    var shownLyrics by remember(np.trackKey) { mutableStateOf(readyLyrics) }
+    if (readyLyrics != null) shownLyrics = readyLyrics
 
-    Row(
-        Modifier.fillMaxSize().padding(horizontal = 96.dp, vertical = 64.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        // Large artwork folds away when lyrics take the stage.
-        AnimatedVisibility(
-            visible = !lyricsVisible,
-            enter = fadeIn(tween(400, delayMillis = 120)) + expandHorizontally(layoutSpec, expandFrom = Alignment.Start),
-            exit = fadeOut(tween(200)) + shrinkHorizontally(layoutSpec, shrinkTowards = Alignment.Start),
-        ) {
-            Row {
+    // One progress value drives the whole morph: 0 = artwork layout, 1 = lyrics layout.
+    val t by animateFloatAsState(if (lyricsVisible) 1f else 0f, tween(MORPH_MS, easing = Emphasized), label = "lyricsMorph")
+    val titleSize = lerp(34f, 24f, t)
+
+    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 96.dp, vertical = 64.dp)) {
+        val w = maxWidth
+        val h = maxHeight
+        val normalLeft = ((w - (ART + GAP + INFO)) / 2).coerceAtLeast(0.dp)
+        val infoX = lerp(normalLeft + ART + GAP, 0.dp, t)
+        val lyricsX = INFO + GAP
+        var rootCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+        var slotCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
+
+        Box(Modifier.fillMaxSize().onPlaced { rootCoords = it }) {
+            // Song details and controls: a fixed-width column that glides left, so text never reflows.
+            Column(
+                Modifier
+                    .align(Alignment.CenterStart)
+                    .offset { IntOffset(infoX.roundToPx(), 0) }
+                    .width(INFO),
+            ) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    SourceBadge(np, iconSize = 16.dp, textSize = 12.sp)
+                    Spacer(Modifier.weight(1f))
+                    LyricsStatus(prefs.showLyrics, lyricsState, np)
+                    Spacer(Modifier.width(10.dp))
+                    QuietIconButton(
+                        icon = Icons.Rounded.Lyrics,
+                        description = if (prefs.showLyrics) "Hide lyrics" else "Show lyrics",
+                        active = prefs.showLyrics,
+                        onClick = { container.scope.launch { container.preferences.setShowLyrics(!prefs.showLyrics) } },
+                    )
+                    Spacer(Modifier.width(6.dp))
+                    QuietIconButton(
+                        icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                        description = "Open ${np.platform}",
+                        onClick = { container.media.openSourceApp() },
+                    )
+                }
+                Spacer(Modifier.height(14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Landing spot for the artwork in lyrics mode; it opens up as the cover arrives.
+                    Spacer(
+                        Modifier
+                            .width((SMALL_ART + 16.dp) * t)
+                            .height(SMALL_ART * t)
+                            .onPlaced { slotCoords = it },
+                    )
+                    AnimatedContent(np.trackKey, transitionSpec = { fadeIn(tween(450)) togetherWith fadeOut(tween(200)) }, label = "npText") { _ ->
+                        Column {
+                            TrackTitle(
+                                np.title,
+                                Scenic.Title.copy(fontSize = titleSize.sp, lineHeight = (titleSize * 1.18f).sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp, shadow = PlayerShadow),
+                                focused = false,
+                                maxLines = 2,
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                np.artist,
+                                style = Scenic.Body.copy(fontSize = (titleSize * 0.62f).sp, color = Scenic.TextPrimary.copy(alpha = 0.6f), shadow = PlayerShadow),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            if (!np.album.isNullOrBlank() && t < 0.99f) {
+                                Text(
+                                    np.album,
+                                    style = Scenic.Body.copy(fontSize = 16.sp, color = Scenic.TextPrimary.copy(alpha = 0.42f * (1f - t)), shadow = PlayerShadow),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 2.dp * (1f - t)).height(22.dp * (1f - t)),
+                                )
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(32.dp))
+                Scrubber(np, position, Modifier.fillMaxWidth(), barHeight = 4.dp, labelSize = 12.sp)
+                Spacer(Modifier.height(18.dp))
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    TransportControls(
+                        np,
+                        container.media::playPause,
+                        container.media::skipNext,
+                        container.media::skipPrevious,
+                        playSize = 56.dp,
+                        skipSize = 46.dp,
+                        spacing = 14.dp,
+                        expressive = true,
+                        playModifier = Modifier.focusRequester(playFocus),
+                    )
+                }
+            }
+
+            // One artwork that shrinks and glides into its spot beside the title (scaled, not re-laid-out).
+            val artSize = lerp(ART, SMALL_ART, t)
+            val scale = artSize / ART
+            val radius = lerp(18.dp, 12.dp, t) / scale
+            Box(
+                Modifier
+                    .align(Alignment.TopStart)
+                    .offset {
+                        val normal = IntOffset(normalLeft.roundToPx(), ((h - ART) / 2).roundToPx())
+                        val root = rootCoords
+                        val slot = slotCoords
+                        val target = if (root != null && slot != null && root.isAttached && slot.isAttached) {
+                            val p = root.localPositionOf(slot, Offset.Zero)
+                            IntOffset(infoX.roundToPx(), p.y.roundToInt())
+                        } else normal
+                        IntOffset(lerpInt(normal.x, target.x, t), lerpInt(normal.y, target.y, t))
+                    }
+                    .size(ART)
+                    .graphicsLayer {
+                        scaleX = scale
+                        scaleY = scale
+                        transformOrigin = TransformOrigin(0f, 0f)
+                    },
+            ) {
                 AnimatedContent(
                     np.trackKey,
                     transitionSpec = { (fadeIn(tween(500)) + scaleIn(tween(500, easing = FastOutSlowInEasing), initialScale = 0.94f)) togetherWith fadeOut(tween(250)) },
                     label = "npArt",
                 ) { _ ->
-                    val shape = RoundedCornerShape(18.dp)
-                    Artwork(np, 300.dp, shape, Modifier.shadow(48.dp, shape, ambientColor = Color.Black, spotColor = Color.Black))
+                    val shape = RoundedCornerShape(radius)
+                    Artwork(np, ART, shape, Modifier.shadow(lerp(48.dp, 60.dp, t), shape, ambientColor = Color.Black, spotColor = Color.Black))
                 }
-                Spacer(Modifier.width(56.dp))
             }
-        }
 
-        Column(if (lyricsVisible) Modifier.width(340.dp) else Modifier.weight(1f)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                SourceBadge(np, iconSize = 16.dp, textSize = 12.sp)
-                Spacer(Modifier.weight(1f))
-                LyricsStatus(prefs.showLyrics, lyricsState, np)
-                Spacer(Modifier.width(10.dp))
-                QuietIconButton(
-                    icon = Icons.Rounded.Lyrics,
-                    description = if (prefs.showLyrics) "Hide lyrics" else "Show lyrics",
-                    active = prefs.showLyrics,
-                    onClick = { container.scope.launch { container.preferences.setShowLyrics(!prefs.showLyrics) } },
-                )
-                Spacer(Modifier.width(6.dp))
-                QuietIconButton(
-                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
-                    description = "Open ${np.platform}",
-                    onClick = { container.media.openSourceApp() },
-                )
-            }
-            Spacer(Modifier.height(14.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // A small cover sits beside the title while lyrics are showing.
-                AnimatedVisibility(
-                    visible = lyricsVisible,
-                    enter = fadeIn(tween(400, delayMillis = 150)) + expandHorizontally(layoutSpec),
-                    exit = fadeOut(tween(150)) + shrinkHorizontally(layoutSpec),
+            // Lyrics drift in from the right as the cover leaves, and drift back out when switched off.
+            val lyrics = shownLyrics
+            if (lyrics != null && t > 0.01f) {
+                val appear = ((t - 0.3f) / 0.7f).coerceIn(0f, 1f)
+                Box(
+                    Modifier
+                        .align(Alignment.CenterStart)
+                        .offset { IntOffset((lyricsX + 48.dp * (1f - appear)).roundToPx(), 0) }
+                        .width((w - lyricsX).coerceAtLeast(0.dp))
+                        .height(LYRICS_HEIGHT)
+                        .graphicsLayer { alpha = appear },
                 ) {
-                    Row {
-                        val shape = RoundedCornerShape(12.dp)
-                        Artwork(np, 72.dp, shape, Modifier.shadow(18.dp, shape))
-                        Spacer(Modifier.width(16.dp))
-                    }
+                    LyricsPanel(np, lyrics, Modifier.fillMaxSize())
                 }
-                AnimatedContent(np.trackKey, transitionSpec = { fadeIn(tween(450)) togetherWith fadeOut(tween(200)) }, label = "npText") { _ ->
-                    Column {
-                        TrackTitle(
-                            np.title,
-                            Scenic.Title.copy(fontSize = titleSize.sp, lineHeight = (titleSize * 1.18f).sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp, shadow = PlayerShadow),
-                            focused = false,
-                            maxLines = 2,
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            np.artist,
-                            style = Scenic.Body.copy(fontSize = (titleSize * 0.62f).sp, fontWeight = FontWeight.Normal, color = Scenic.TextPrimary.copy(alpha = 0.6f), shadow = PlayerShadow),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        if (!np.album.isNullOrBlank() && !lyricsVisible) {
-                            Spacer(Modifier.height(2.dp))
-                            Text(
-                                np.album,
-                                style = Scenic.Body.copy(fontSize = 16.sp, color = Scenic.TextPrimary.copy(alpha = 0.42f), shadow = PlayerShadow),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.height(32.dp))
-            Scrubber(np, position, Modifier.fillMaxWidth(), barHeight = 4.dp, labelSize = 12.sp)
-            Spacer(Modifier.height(18.dp))
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                TransportControls(
-                    np,
-                    container.media::playPause,
-                    container.media::skipNext,
-                    container.media::skipPrevious,
-                    playSize = 56.dp,
-                    skipSize = 46.dp,
-                    spacing = 14.dp,
-                    expressive = true,
-                    playModifier = Modifier.focusRequester(playFocus),
-                )
-            }
-        }
-
-        // Lyrics slide in from the right.
-        AnimatedVisibility(
-            visible = lyricsVisible,
-            enter = fadeIn(tween(450, delayMillis = 150)) + expandHorizontally(layoutSpec, expandFrom = Alignment.End),
-            exit = fadeOut(tween(200)) + shrinkHorizontally(layoutSpec, shrinkTowards = Alignment.End),
-            modifier = Modifier.weight(1f, fill = false),
-        ) {
-            Row {
-                Spacer(Modifier.width(56.dp))
-                lyrics?.let { LyricsPanel(np, it, Modifier.fillMaxWidth().height(LYRICS_HEIGHT)) }
             }
         }
     }
 }
+
+private fun lerpInt(a: Int, b: Int, t: Float) = (a + (b - a) * t).roundToInt()
+
+/** Apple's "emphasized" curve: quick start, long graceful settle. */
+private val Emphasized = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+private const val MORPH_MS = 700
+private val ART = 300.dp
+private val SMALL_ART = 72.dp
+private val GAP = 56.dp
+private val INFO = 340.dp
 
 /** Minimal tvOS-style icon button: just a glyph, a white disc when focused, a soft fill when switched on. */
 @Composable

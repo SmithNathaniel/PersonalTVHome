@@ -3,7 +3,10 @@ package com.nathaniel.tvhome.ui.home
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearOutSlowInEasing
+import androidx.compose.runtime.remember
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -121,7 +124,9 @@ fun LyricsPanel(np: NowPlaying, lyrics: Lyrics, modifier: Modifier = Modifier) {
 @Composable
 private fun SyncedLyrics(np: NowPlaying, lines: List<LyricLine>, modifier: Modifier) {
     val index = rememberLyricIndex(np, lines)
-    val listState = rememberLazyListState()
+    val listState = rememberLazyListState(initialFirstVisibleItemIndex = index.coerceAtLeast(0))
+    val entrance = remember { Animatable(0f) }
+    LaunchedEffect(Unit) { entrance.animateTo(1f, tween(1100, easing = LinearOutSlowInEasing)) }
     LaunchedEffect(index) {
         listState.animateScrollToItem(index.coerceAtLeast(0))
     }
@@ -134,14 +139,21 @@ private fun SyncedLyrics(np: NowPlaying, lines: List<LyricLine>, modifier: Modif
             modifier = Modifier.fillMaxSize(),
         ) {
             itemsIndexed(lines, key = { i, _ -> i }) { i, line ->
-                LyricRow(line.text.ifBlank { "♪" }, active = i == index, past = i < index)
+                // Each line rises in a beat after the one above it.
+                val step = (i - index).coerceIn(0, 6) * 0.09f
+                LyricRow(
+                    line.text.ifBlank { "♪" },
+                    active = i == index,
+                    past = i < index,
+                    entrance = { ((entrance.value - step) / 0.45f).coerceIn(0f, 1f) },
+                )
             }
         }
     }
 }
 
 @Composable
-private fun LyricRow(text: String, active: Boolean, past: Boolean) {
+private fun LyricRow(text: String, active: Boolean, past: Boolean, entrance: () -> Float = { 1f }) {
     val color by animateColorAsState(
         when {
             active -> Color.White
@@ -159,6 +171,9 @@ private fun LyricRow(text: String, active: Boolean, past: Boolean) {
             .fillMaxWidth()
             .padding(vertical = 7.dp)
             .graphicsLayer {
+                val e = entrance()
+                alpha = e
+                translationY = (1f - e) * 18.dp.toPx()
                 scaleX = scale
                 scaleY = scale
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
