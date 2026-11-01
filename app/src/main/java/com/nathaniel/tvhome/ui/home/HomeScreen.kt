@@ -101,7 +101,7 @@ fun HomeScreen() {
         Column(
             Modifier
                 .fillMaxWidth()
-                .padding(top = maxHeight * 0.66f),
+                .padding(top = maxHeight * 0.72f),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (entries.isNotEmpty()) {

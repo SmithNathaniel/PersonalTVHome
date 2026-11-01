@@ -373,4 +373,4 @@ private fun LyricsStatus(enabled: Boolean, state: LyricsState, np: NowPlaying) {
 }
 
 private val SMALL_BUTTON = 34.dp
-private val LYRICS_HEIGHT = 400.dp
+private val LYRICS_HEIGHT = 260.dp

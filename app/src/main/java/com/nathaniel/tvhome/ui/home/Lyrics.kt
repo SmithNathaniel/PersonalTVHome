@@ -2,12 +2,7 @@ package com.nathaniel.tvhome.ui.home
 
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.runtime.remember
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -15,27 +10,17 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.drawWithContent
-import androidx.compose.ui.graphics.BlendMode
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -109,12 +94,24 @@ fun WidgetLyricLine(np: NowPlaying, lyrics: Lyrics.Synced, fontSize: TextUnit, m
     }
 }
 
-/** Apple Music–style lyrics: the sung line is bright and large, the rest recede, all scrolling smoothly. */
+/**
+ * Apple Music–style lyrics, three lines at a time: the line just sung (dim), the line being sung
+ * (bright) and the next line (dim). Each new line slides the trio up.
+ */
 @Composable
 fun LyricsPanel(np: NowPlaying, lyrics: Lyrics, modifier: Modifier = Modifier) {
     when (lyrics) {
-        is Lyrics.Synced -> SyncedLyrics(np, lyrics.lines, modifier)
-        is Lyrics.Plain -> PlainLyrics(np, lyrics.lines, modifier)
+        is Lyrics.Synced -> {
+            val index = rememberLyricIndex(np, lyrics.lines)
+            ThreeLines(index, lyrics.lines.size, { lyrics.lines[it].text }, modifier)
+        }
+        is Lyrics.Plain -> {
+            // No timing: estimate the line from how far through the song we are.
+            val lines = lyrics.lines.filter { it.isNotBlank() }
+            val position = rememberPosition(np)
+            val index = if (np.durationMs > 0 && lines.isNotEmpty()) ((position.toFloat() / np.durationMs) * lines.size).toInt().coerceIn(0, lines.lastIndex) else 0
+            ThreeLines(index, lines.size, { lines[it] }, modifier)
+        }
         Lyrics.Instrumental -> Box(modifier, contentAlignment = Alignment.CenterStart) {
             Icon(Icons.Rounded.MusicNote, contentDescription = "Instrumental", tint = Scenic.TextPrimary.copy(alpha = 0.6f), modifier = Modifier.padding(8.dp))
         }
@@ -122,102 +119,52 @@ fun LyricsPanel(np: NowPlaying, lyrics: Lyrics, modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun SyncedLyrics(np: NowPlaying, lines: List<LyricLine>, modifier: Modifier) {
-    val index = rememberLyricIndex(np, lines)
-    val listState = rememberLazyListState(initialFirstVisibleItemIndex = index.coerceAtLeast(0))
-    val entrance = remember { Animatable(0f) }
-    LaunchedEffect(Unit) { entrance.animateTo(1f, tween(1100, easing = LinearOutSlowInEasing)) }
-    LaunchedEffect(index) {
-        listState.animateScrollToItem(index.coerceAtLeast(0))
-    }
-    BoxWithConstraints(modifier.fadingEdges()) {
-        LazyColumn(
-            state = listState,
-            userScrollEnabled = false,
-            // The active line sits about a third of the way down, like Apple Music.
-            contentPadding = PaddingValues(top = maxHeight * 0.32f, bottom = maxHeight * 0.6f),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            itemsIndexed(lines, key = { i, _ -> i }) { i, line ->
-                // Each line rises in a beat after the one above it.
-                val step = (i - index).coerceIn(0, 6) * 0.09f
-                LyricRow(
-                    line.text.ifBlank { "♪" },
-                    active = i == index,
-                    past = i < index,
-                    entrance = { ((entrance.value - step) / 0.45f).coerceIn(0f, 1f) },
-                )
+private fun ThreeLines(index: Int, count: Int, line: (Int) -> String, modifier: Modifier) {
+    fun textAt(i: Int): String? = if (i in 0 until count) line(i).ifBlank { "♪" } else null
+    Box(modifier, contentAlignment = Alignment.CenterStart) {
+        AnimatedContent(
+            targetState = index,
+            transitionSpec = {
+                val forward = targetState > initialState
+                (fadeIn(tween(420, delayMillis = 60)) + slideInVertically(tween(520, easing = FastOutSlowInEasing)) { if (forward) it / 3 else -it / 3 }) togetherWith
+                    (fadeOut(tween(260)) + slideOutVertically(tween(520, easing = FastOutSlowInEasing)) { if (forward) -it / 3 else it / 3 })
+            },
+            label = "lyricTrio",
+        ) { i ->
+            Column(Modifier.fillMaxWidth()) {
+                LyricRow(textAt(i - 1), LineRole.Previous)
+                // Before the first line, show a quiet note in the "current" slot.
+                LyricRow(textAt(i) ?: if (i < 0) "♪" else null, LineRole.Current)
+                LyricRow(textAt(i + 1), LineRole.Next)
             }
         }
     }
 }
 
+private enum class LineRole { Previous, Current, Next }
+
 @Composable
-private fun LyricRow(text: String, active: Boolean, past: Boolean, entrance: () -> Float = { 1f }) {
-    val color by animateColorAsState(
-        when {
-            active -> Color.White
-            past -> Color.White.copy(alpha = 0.28f)
-            else -> Color.White.copy(alpha = 0.38f)
-        },
-        tween(420),
-        label = "lyricColor",
-    )
-    val scale by animateFloatAsState(if (active) 1f else 0.96f, tween(420, easing = FastOutSlowInEasing), label = "lyricScale")
+private fun LyricRow(text: String?, role: LineRole) {
+    val color = when (role) {
+        LineRole.Current -> Color.White
+        LineRole.Previous -> Color.White.copy(alpha = 0.3f)
+        LineRole.Next -> Color.White.copy(alpha = 0.42f)
+    }
+    val scale = if (role == LineRole.Current) 1f else 0.9f
     Text(
-        text,
-        style = Scenic.Title.copy(fontSize = 22.sp, lineHeight = 29.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp, color = color, shadow = PlayerShadow),
+        text ?: "",
+        style = Scenic.Title.copy(fontSize = 26.sp, lineHeight = 33.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp, color = color, shadow = PlayerShadow),
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        // Keep a steady rhythm even when a slot is empty (start or end of the song).
+        minLines = 1,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 7.dp)
+            .padding(vertical = 8.dp)
             .graphicsLayer {
-                val e = entrance()
-                alpha = e
-                translationY = (1f - e) * 18.dp.toPx()
                 scaleX = scale
                 scaleY = scale
                 transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
             },
     )
 }
-
-/** Unsynced lyrics glide down the sheet in step with the song's progress. */
-@Composable
-private fun PlainLyrics(np: NowPlaying, lines: List<String>, modifier: Modifier) {
-    val position = rememberPosition(np)
-    val listState = rememberLazyListState()
-    val target = if (np.durationMs > 0) ((position.toFloat() / np.durationMs) * lines.size).toInt().coerceIn(0, lines.lastIndex) else 0
-    LaunchedEffect(target) { listState.animateScrollToItem(target) }
-    BoxWithConstraints(modifier.fadingEdges()) {
-        LazyColumn(
-            state = listState,
-            userScrollEnabled = false,
-            contentPadding = PaddingValues(top = maxHeight * 0.32f, bottom = maxHeight * 0.6f),
-            modifier = Modifier.fillMaxSize(),
-        ) {
-            itemsIndexed(lines, key = { i, _ -> i }) { _, line ->
-                Text(
-                    line,
-                    style = Scenic.Title.copy(fontSize = 19.sp, lineHeight = 27.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.75f), shadow = PlayerShadow),
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                )
-            }
-        }
-    }
-}
-
-/** Fades lyrics out toward the top and bottom edges. */
-private fun Modifier.fadingEdges(): Modifier = this
-    .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-    .drawWithContent {
-        drawContent()
-        drawRect(
-            Brush.verticalGradient(
-                0f to Color.Transparent,
-                0.18f to Color.Black,
-                0.78f to Color.Black,
-                1f to Color.Transparent,
-            ),
-            blendMode = BlendMode.DstIn,
-        )
-    }

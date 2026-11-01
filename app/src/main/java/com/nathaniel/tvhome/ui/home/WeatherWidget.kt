@@ -98,7 +98,7 @@ fun WeatherGlyph(condition: WeatherCondition, isDay: Boolean, size: Dp, modifier
  */
 @Composable
 fun WeatherWidget(weather: WeatherState, location: WeatherLocation, use24Hour: Boolean, modifier: Modifier = Modifier) {
-    GlassSurface(RoundedCornerShape(24.dp), modifier = modifier.widthIn(min = 200.dp, max = WIDGET_WIDTH), tintBoost = -0.04f, elevation = 16.dp) {
+    GlassSurface(RoundedCornerShape(17.dp), modifier = modifier.widthIn(min = 180.dp, max = WIDGET_WIDTH), tintBoost = -0.04f, elevation = 12.dp) {
         AnimatedContent(
             targetState = weather,
             contentKey = { state ->
@@ -110,7 +110,7 @@ fun WeatherWidget(weather: WeatherState, location: WeatherLocation, use24Hour: B
             transitionSpec = { fadeIn(tween(500)) togetherWith fadeOut(tween(300)) },
             label = "weatherWidget",
         ) { state ->
-            Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp)) {
                 when (state) {
                     is WeatherState.Ready -> ReadyContent(state.weather, state.stale, location, use24Hour)
                     WeatherState.Loading -> Placeholder(location, "Updating…")
@@ -129,8 +129,8 @@ private fun ReadyContent(w: CurrentWeather, stale: Boolean, location: WeatherLoc
             Text("${w.temperatureC}°", style = BigTemp, maxLines = 1)
         }
         Column(horizontalAlignment = Alignment.End) {
-            WeatherGlyph(w.condition, w.isDay, size = 22.dp)
-            Spacer(Modifier.height(6.dp))
+            WeatherGlyph(w.condition, w.isDay, size = 15.dp)
+            Spacer(Modifier.height(3.dp))
             Text(if (stale) "${w.condition.label} · Offline" else w.condition.label, style = Detail.copy(fontWeight = FontWeight.SemiBold, color = Scenic.TextPrimary), maxLines = 1)
             if (w.highC != null && w.lowC != null) {
                 Text("H:${w.highC}°  L:${w.lowC}°", style = Detail, maxLines = 1)
@@ -138,8 +138,8 @@ private fun ReadyContent(w: CurrentWeather, stale: Boolean, location: WeatherLoc
         }
     }
     if (w.hourly.isNotEmpty()) {
-        Spacer(Modifier.height(10.dp))
-        HourlyStrip(w.hourly, use24Hour)
+        Spacer(Modifier.height(6.dp))
+        HourlyStrip(w.hourly.take(5), use24Hour)
     }
 }
 
@@ -149,9 +149,9 @@ private fun HourlyStrip(hours: List<HourlyForecast>, use24Hour: Boolean) {
         hours.forEachIndexed { i, h ->
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(if (i == 0) "Now" else hourLabel(h.hour, use24Hour), style = Small, maxLines = 1)
-                Spacer(Modifier.height(5.dp))
-                WeatherGlyph(h.condition, h.isDay, size = 17.dp)
-                Spacer(Modifier.height(5.dp))
+                Spacer(Modifier.height(3.dp))
+                WeatherGlyph(h.condition, h.isDay, size = 12.dp)
+                Spacer(Modifier.height(3.dp))
                 Text("${h.temperatureC}°", style = Small.copy(fontWeight = FontWeight.SemiBold, color = Scenic.TextPrimary), maxLines = 1)
             }
         }
@@ -170,13 +170,13 @@ private fun PlaceLabel(location: WeatherLocation) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             location.name,
-            style = TextStyle(fontFamily = InterText, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, color = Scenic.TextPrimary, shadow = WidgetShadow),
+            style = TextStyle(fontFamily = InterText, fontWeight = FontWeight.SemiBold, fontSize = 10.sp, color = Scenic.TextPrimary, shadow = WidgetShadow),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false),
         )
         Spacer(Modifier.width(4.dp))
-        Icon(Icons.Rounded.NearMe, contentDescription = null, tint = Scenic.TextPrimary, modifier = Modifier.size(11.dp).offset(y = 0.5.dp))
+        Icon(Icons.Rounded.NearMe, contentDescription = null, tint = Scenic.TextPrimary, modifier = Modifier.size(8.dp).offset(y = 0.5.dp))
     }
 }
 
@@ -189,7 +189,7 @@ private fun hourLabel(hour: Int, use24Hour: Boolean): String =
         else -> "${hour - 12}PM"
     }
 
-private val WIDGET_WIDTH = 300.dp
-private val BigTemp = TextStyle(fontFamily = InterDisplay, fontWeight = FontWeight.Light, fontSize = 44.sp, lineHeight = 48.sp, letterSpacing = (-1.5).sp, color = Scenic.TextPrimary, shadow = WidgetShadow)
-private val Detail = TextStyle(fontFamily = InterText, fontWeight = FontWeight.Medium, fontSize = 12.sp, lineHeight = 15.sp, color = Scenic.TextPrimary.copy(alpha = 0.78f), fontFeatureSettings = "tnum", shadow = WidgetShadow)
-private val Small = TextStyle(fontFamily = InterText, fontWeight = FontWeight.Medium, fontSize = 11.sp, lineHeight = 13.sp, color = Scenic.TextPrimary.copy(alpha = 0.78f), fontFeatureSettings = "tnum", shadow = WidgetShadow)
+private val WIDGET_WIDTH = 215.dp
+private val BigTemp = TextStyle(fontFamily = InterDisplay, fontWeight = FontWeight.Light, fontSize = 29.sp, lineHeight = 33.sp, letterSpacing = (-1).sp, color = Scenic.TextPrimary, shadow = WidgetShadow)
+private val Detail = TextStyle(fontFamily = InterText, fontWeight = FontWeight.Medium, fontSize = 9.5.sp, lineHeight = 12.sp, color = Scenic.TextPrimary.copy(alpha = 0.78f), fontFeatureSettings = "tnum", shadow = WidgetShadow)
+private val Small = TextStyle(fontFamily = InterText, fontWeight = FontWeight.Medium, fontSize = 8.5.sp, lineHeight = 10.sp, color = Scenic.TextPrimary.copy(alpha = 0.78f), fontFeatureSettings = "tnum", shadow = WidgetShadow)

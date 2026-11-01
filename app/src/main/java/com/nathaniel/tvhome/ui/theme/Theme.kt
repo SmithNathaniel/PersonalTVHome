@@ -9,6 +9,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.Offset
 import androidx.tv.material3.MaterialTheme
@@ -48,7 +49,11 @@ object Scenic {
 
     val Welcome = TextStyle(fontFamily = text, fontWeight = FontWeight.Medium, fontSize = 17.sp, letterSpacing = 0.1.sp, color = TextPrimary.copy(alpha = 0.72f), shadow = softShadow)
     val Name = TextStyle(fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, letterSpacing = (-0.4).sp, color = TextPrimary, shadow = softShadow)
-    val Clock = TextStyle(fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 84.sp, lineHeight = 88.sp, letterSpacing = (-3).sp, color = TextPrimary, fontFeatureSettings = "tnum, ss01", shadow = softShadow)
+    val Clock = TextStyle(
+        fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 72.sp, lineHeight = 72.sp, letterSpacing = (-2.5).sp,
+        color = TextPrimary, fontFeatureSettings = "tnum, ss01", shadow = softShadow,
+        lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+    )
     val Date = TextStyle(fontFamily = text, fontWeight = FontWeight.Medium, fontSize = 19.sp, letterSpacing = (-0.1).sp, color = TextPrimary.copy(alpha = 0.82f), shadow = softShadow)
     val Body = TextStyle(fontFamily = text, fontWeight = FontWeight.Normal, fontSize = 16.sp, letterSpacing = (-0.1).sp, color = TextPrimary)
     val BodySecondary = Body.copy(color = TextSecondary)

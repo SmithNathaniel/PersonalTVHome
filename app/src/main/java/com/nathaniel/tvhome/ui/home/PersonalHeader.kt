@@ -12,6 +12,8 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Text
@@ -59,24 +61,29 @@ fun PersonalHeader(
         Text("Welcome", style = Scenic.Welcome)
         Text(OWNER_NAME, style = Scenic.Name)
         Spacer(Modifier.height(4.dp))
-        // Time and date on the left, the weather widget alongside, like an iPad lock screen.
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Column {
-                Row(verticalAlignment = Alignment.Bottom) {
-                    Text(now.format(DateTimeFormatter.ofPattern(timePattern, locale)), style = Scenic.Clock)
-                    if (!use24Hour) {
-                        Spacer(Modifier.width(6.dp))
-                        Text(
-                            now.format(DateTimeFormatter.ofPattern("a", locale)),
-                            style = Scenic.Date.copy(fontSize = 22.sp, fontWeight = FontWeight.SemiBold),
-                            modifier = Modifier.padding(bottom = 14.dp),
-                        )
-                    }
-                }
-                Text(now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale)), style = Scenic.Date)
+        Row(Modifier.trimVertical(top = 12.dp, bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
+            Text(now.format(DateTimeFormatter.ofPattern(timePattern, locale)), style = Scenic.Clock)
+            if (!use24Hour) {
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    now.format(DateTimeFormatter.ofPattern("a", locale)),
+                    style = Scenic.Date.copy(fontSize = 19.sp, fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.padding(bottom = 7.dp),
+                )
             }
-            Spacer(Modifier.width(32.dp))
-            WeatherWidget(weather, location, use24Hour, Modifier.weight(1f, fill = false))
         }
+        Spacer(Modifier.height(4.dp))
+        Text(now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale)), style = Scenic.Date)
+        Spacer(Modifier.height(12.dp))
+        WeatherWidget(weather, location, use24Hour)
     }
+}
+
+/** Removes the empty space a large font reserves above and below its digits, so lines sit tightly. */
+private fun Modifier.trimVertical(top: Dp, bottom: Dp): Modifier = layout { measurable, constraints ->
+    val placeable = measurable.measure(constraints)
+    val t = top.roundToPx()
+    val b = bottom.roundToPx()
+    val height = (placeable.height - t - b).coerceAtLeast(0)
+    layout(placeable.width, height) { placeable.place(0, -t) }
 }
