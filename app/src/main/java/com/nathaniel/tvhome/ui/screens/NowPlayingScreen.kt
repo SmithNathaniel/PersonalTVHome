@@ -1,6 +1,17 @@
 package com.nathaniel.tvhome.ui.screens
 
 import androidx.compose.animation.AnimatedContent
+import com.nathaniel.tvhome.ui.components.tvClickable
+import com.nathaniel.tvhome.ui.components.FocusSpring
+import androidx.tv.material3.Icon
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.background
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.expandHorizontally
@@ -145,7 +156,7 @@ internal fun NowPlayingContent(np: NowPlaying) {
 
     val lyrics = (lyricsState as? LyricsState.Ready)?.takeIf { it.trackKey == np.trackKey }?.lyrics
     val lyricsVisible = prefs.showLyrics && lyrics != null
-    val titleSize by animateFloatAsState(if (lyricsVisible) 28f else 40f, tween(450, easing = FastOutSlowInEasing), label = "titleSize")
+    val titleSize by animateFloatAsState(if (lyricsVisible) 24f else 34f, tween(450, easing = FastOutSlowInEasing), label = "titleSize")
     val layoutSpec = tween<IntSize>(480, easing = FastOutSlowInEasing)
 
     Row(
@@ -173,23 +184,21 @@ internal fun NowPlayingContent(np: NowPlaying) {
 
         Column(if (lyricsVisible) Modifier.width(340.dp) else Modifier.weight(1f)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                SourceBadge(np, iconSize = 22.dp, textSize = 15.sp)
+                SourceBadge(np, iconSize = 16.dp, textSize = 12.sp)
                 Spacer(Modifier.weight(1f))
                 LyricsStatus(prefs.showLyrics, lyricsState, np)
                 Spacer(Modifier.width(10.dp))
-                GlassButton(
-                    text = null,
+                QuietIconButton(
                     icon = Icons.Rounded.Lyrics,
+                    description = if (prefs.showLyrics) "Hide lyrics" else "Show lyrics",
+                    active = prefs.showLyrics,
                     onClick = { container.scope.launch { container.preferences.setShowLyrics(!prefs.showLyrics) } },
-                    selected = prefs.showLyrics,
-                    height = SMALL_BUTTON,
                 )
-                Spacer(Modifier.width(10.dp))
-                GlassButton(
-                    text = null,
+                Spacer(Modifier.width(6.dp))
+                QuietIconButton(
                     icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                    description = "Open ${np.platform}",
                     onClick = { container.media.openSourceApp() },
-                    height = SMALL_BUTTON,
                 )
             }
             Spacer(Modifier.height(14.dp))
@@ -202,7 +211,7 @@ internal fun NowPlayingContent(np: NowPlaying) {
                 ) {
                     Row {
                         val shape = RoundedCornerShape(12.dp)
-                        Artwork(np, 84.dp, shape, Modifier.shadow(20.dp, shape))
+                        Artwork(np, 72.dp, shape, Modifier.shadow(18.dp, shape))
                         Spacer(Modifier.width(16.dp))
                     }
                 }
@@ -210,14 +219,14 @@ internal fun NowPlayingContent(np: NowPlaying) {
                     Column {
                         TrackTitle(
                             np.title,
-                            Scenic.Title.copy(fontSize = titleSize.sp, lineHeight = (titleSize * 1.15f).sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp, shadow = PlayerShadow),
+                            Scenic.Title.copy(fontSize = titleSize.sp, lineHeight = (titleSize * 1.18f).sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp, shadow = PlayerShadow),
                             focused = false,
                             maxLines = 2,
                         )
-                        Spacer(Modifier.height(6.dp))
+                        Spacer(Modifier.height(4.dp))
                         Text(
                             np.artist,
-                            style = Scenic.Body.copy(fontSize = (titleSize * 0.6f).sp, fontWeight = FontWeight.Medium, color = Scenic.TextPrimary.copy(alpha = 0.72f), shadow = PlayerShadow),
+                            style = Scenic.Body.copy(fontSize = (titleSize * 0.62f).sp, fontWeight = FontWeight.Normal, color = Scenic.TextPrimary.copy(alpha = 0.6f), shadow = PlayerShadow),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                         )
@@ -225,7 +234,7 @@ internal fun NowPlayingContent(np: NowPlaying) {
                             Spacer(Modifier.height(2.dp))
                             Text(
                                 np.album,
-                                style = Scenic.Body.copy(fontSize = 18.sp, color = Scenic.TextPrimary.copy(alpha = 0.5f), shadow = PlayerShadow),
+                                style = Scenic.Body.copy(fontSize = 16.sp, color = Scenic.TextPrimary.copy(alpha = 0.42f), shadow = PlayerShadow),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
@@ -233,18 +242,18 @@ internal fun NowPlayingContent(np: NowPlaying) {
                     }
                 }
             }
-            Spacer(Modifier.height(36.dp))
-            Scrubber(np, position, Modifier.fillMaxWidth(), barHeight = 6.dp, labelSize = 14.sp)
-            Spacer(Modifier.height(22.dp))
+            Spacer(Modifier.height(32.dp))
+            Scrubber(np, position, Modifier.fillMaxWidth(), barHeight = 4.dp, labelSize = 12.sp)
+            Spacer(Modifier.height(18.dp))
             Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                 TransportControls(
                     np,
                     container.media::playPause,
                     container.media::skipNext,
                     container.media::skipPrevious,
-                    playSize = 64.dp,
-                    skipSize = 52.dp,
-                    spacing = 10.dp,
+                    playSize = 56.dp,
+                    skipSize = 46.dp,
+                    spacing = 14.dp,
                     expressive = true,
                     playModifier = Modifier.focusRequester(playFocus),
                 )
@@ -266,6 +275,39 @@ internal fun NowPlayingContent(np: NowPlaying) {
     }
 }
 
+/** Minimal tvOS-style icon button: just a glyph, a white disc when focused, a soft fill when switched on. */
+@Composable
+private fun QuietIconButton(icon: ImageVector, description: String, onClick: () -> Unit, active: Boolean = false) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val scale by animateFloatAsState(if (focused) 1.12f else 1f, FocusSpring, label = "quietScale")
+    val bg by animateColorAsState(
+        when {
+            focused -> Color.White
+            active -> Color.White.copy(alpha = 0.18f)
+            else -> Color.Transparent
+        },
+        tween(180),
+        label = "quietBg",
+    )
+    val tint = when {
+        focused -> Color(0xFF111111)
+        active -> Color.White
+        else -> Color.White.copy(alpha = 0.6f)
+    }
+    Box(
+        Modifier
+            .size(SMALL_BUTTON)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(CircleShape)
+            .background(bg)
+            .tvClickable(interaction, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = description, tint = tint, modifier = Modifier.size(SMALL_BUTTON * 0.52f))
+    }
+}
+
 /** Quiet status next to the lyrics button: searching, or nothing found for this song. */
 @Composable
 private fun LyricsStatus(enabled: Boolean, state: LyricsState, np: NowPlaying) {
@@ -276,9 +318,9 @@ private fun LyricsStatus(enabled: Boolean, state: LyricsState, np: NowPlaying) {
         else -> null
     }
     AnimatedContent(text, transitionSpec = { fadeIn(tween(250)) togetherWith fadeOut(tween(200)) }, label = "lyricsStatus") { t ->
-        if (t != null) Text(t, style = Scenic.Caption.copy(fontSize = 13.sp, color = Scenic.TextPrimary.copy(alpha = 0.6f), shadow = PlayerShadow))
+        if (t != null) Text(t, style = Scenic.Caption.copy(fontSize = 11.sp, color = Scenic.TextPrimary.copy(alpha = 0.5f), shadow = PlayerShadow))
     }
 }
 
-private val SMALL_BUTTON = 40.dp
+private val SMALL_BUTTON = 34.dp
 private val LYRICS_HEIGHT = 400.dp

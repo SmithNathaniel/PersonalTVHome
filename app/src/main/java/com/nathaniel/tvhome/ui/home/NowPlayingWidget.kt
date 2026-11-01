@@ -361,7 +361,7 @@ private fun ExpressiveButton(
         // Soft glow that blooms behind the focused button.
         Canvas(Modifier.size(size * 1.3f).graphicsLayer { alpha = halo }) {
             drawCircle(
-                Brush.radialGradient(listOf(Color.White.copy(alpha = 0.32f), Color.Transparent), radius = this.size.minDimension / 2),
+                Brush.radialGradient(listOf(Color.White.copy(alpha = 0.22f), Color.Transparent), radius = this.size.minDimension / 2),
             )
         }
         Box(
@@ -374,7 +374,7 @@ private fun ExpressiveButton(
                 }
                 .shadow((16 * fill).dp, CircleShape, clip = false)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.12f * (1 - fill) + fill))
+                .background(Color.White.copy(alpha = fill))
                 .tvClickable(interaction) {
                     if (!enabled) return@tvClickable
                     onClick()

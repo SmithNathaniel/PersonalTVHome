@@ -145,19 +145,19 @@ private fun LyricRow(text: String, active: Boolean, past: Boolean) {
     val color by animateColorAsState(
         when {
             active -> Color.White
-            past -> Color.White.copy(alpha = 0.32f)
-            else -> Color.White.copy(alpha = 0.45f)
+            past -> Color.White.copy(alpha = 0.28f)
+            else -> Color.White.copy(alpha = 0.38f)
         },
         tween(420),
         label = "lyricColor",
     )
-    val scale by animateFloatAsState(if (active) 1f else 0.94f, tween(420, easing = FastOutSlowInEasing), label = "lyricScale")
+    val scale by animateFloatAsState(if (active) 1f else 0.96f, tween(420, easing = FastOutSlowInEasing), label = "lyricScale")
     Text(
         text,
-        style = Scenic.Title.copy(fontSize = 30.sp, lineHeight = 38.sp, fontWeight = FontWeight.Bold, color = color, shadow = PlayerShadow),
+        style = Scenic.Title.copy(fontSize = 22.sp, lineHeight = 29.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.2).sp, color = color, shadow = PlayerShadow),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 9.dp)
+            .padding(vertical = 7.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -183,7 +183,7 @@ private fun PlainLyrics(np: NowPlaying, lines: List<String>, modifier: Modifier)
             itemsIndexed(lines, key = { i, _ -> i }) { _, line ->
                 Text(
                     line,
-                    style = Scenic.Title.copy(fontSize = 24.sp, lineHeight = 32.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.8f), shadow = PlayerShadow),
+                    style = Scenic.Title.copy(fontSize = 19.sp, lineHeight = 27.sp, fontWeight = FontWeight.SemiBold, color = Color.White.copy(alpha = 0.75f), shadow = PlayerShadow),
                     modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 )
             }
