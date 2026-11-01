@@ -50,7 +50,7 @@ object Scenic {
     val Welcome = TextStyle(fontFamily = text, fontWeight = FontWeight.Medium, fontSize = 17.sp, letterSpacing = 0.1.sp, color = TextPrimary.copy(alpha = 0.72f), shadow = softShadow)
     val Name = TextStyle(fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, letterSpacing = (-0.4).sp, color = TextPrimary, shadow = softShadow)
     val Clock = TextStyle(
-        fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 72.sp, lineHeight = 72.sp, letterSpacing = (-2.5).sp,
+        fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 84.sp, lineHeight = 84.sp, letterSpacing = (-3).sp,
         color = TextPrimary, fontFeatureSettings = "tnum, ss01", shadow = softShadow,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )

@@ -47,7 +47,6 @@ import com.nathaniel.tvhome.ui.theme.InterDisplay
 import com.nathaniel.tvhome.ui.theme.InterText
 import com.nathaniel.tvhome.ui.theme.Scenic
 import com.nathaniel.tvhome.weather.CurrentWeather
-import com.nathaniel.tvhome.weather.HourlyForecast
 import com.nathaniel.tvhome.weather.WeatherCondition
 import com.nathaniel.tvhome.weather.WeatherState
 
@@ -92,18 +91,15 @@ fun WeatherGlyph(condition: WeatherCondition, isDay: Boolean, size: Dp, modifier
     }
 }
 
-/**
- * Apple Weather–style widget: place, large temperature, condition with today's high and low,
- * then an hourly strip.
- */
+/** Apple Weather–style widget: place, large temperature, and the condition with today's high and low. */
 @Composable
-fun WeatherWidget(weather: WeatherState, location: WeatherLocation, use24Hour: Boolean, modifier: Modifier = Modifier) {
+fun WeatherWidget(weather: WeatherState, location: WeatherLocation, modifier: Modifier = Modifier) {
     GlassSurface(RoundedCornerShape(17.dp), modifier = modifier.widthIn(min = 180.dp, max = WIDGET_WIDTH), tintBoost = -0.04f, elevation = 12.dp) {
         AnimatedContent(
             targetState = weather,
             contentKey = { state ->
                 when (state) {
-                    is WeatherState.Ready -> state.weather.let { "${it.temperatureC}|${it.code}|${it.isDay}|${it.hourly.firstOrNull()?.hour}|${state.stale}" }
+                    is WeatherState.Ready -> state.weather.let { "${it.temperatureC}|${it.code}|${it.isDay}|${it.highC}|${it.lowC}|${state.stale}" }
                     else -> state::class.simpleName
                 }
             },
@@ -112,7 +108,7 @@ fun WeatherWidget(weather: WeatherState, location: WeatherLocation, use24Hour: B
         ) { state ->
             Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 9.dp)) {
                 when (state) {
-                    is WeatherState.Ready -> ReadyContent(state.weather, state.stale, location, use24Hour)
+                    is WeatherState.Ready -> ReadyContent(state.weather, state.stale, location)
                     WeatherState.Loading -> Placeholder(location, "Updating…")
                     is WeatherState.Unavailable -> Placeholder(location, "Weather unavailable")
                 }
@@ -122,7 +118,7 @@ fun WeatherWidget(weather: WeatherState, location: WeatherLocation, use24Hour: B
 }
 
 @Composable
-private fun ReadyContent(w: CurrentWeather, stale: Boolean, location: WeatherLocation, use24Hour: Boolean) {
+private fun ReadyContent(w: CurrentWeather, stale: Boolean, location: WeatherLocation) {
     Row(verticalAlignment = Alignment.Top) {
         Column(Modifier.weight(1f)) {
             PlaceLabel(location)
@@ -134,25 +130,6 @@ private fun ReadyContent(w: CurrentWeather, stale: Boolean, location: WeatherLoc
             Text(if (stale) "${w.condition.label} · Offline" else w.condition.label, style = Detail.copy(fontWeight = FontWeight.SemiBold, color = Scenic.TextPrimary), maxLines = 1)
             if (w.highC != null && w.lowC != null) {
                 Text("H:${w.highC}°  L:${w.lowC}°", style = Detail, maxLines = 1)
-            }
-        }
-    }
-    if (w.hourly.isNotEmpty()) {
-        Spacer(Modifier.height(6.dp))
-        HourlyStrip(w.hourly.take(5), use24Hour)
-    }
-}
-
-@Composable
-private fun HourlyStrip(hours: List<HourlyForecast>, use24Hour: Boolean) {
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-        hours.forEachIndexed { i, h ->
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(if (i == 0) "Now" else hourLabel(h.hour, use24Hour), style = Small, maxLines = 1)
-                Spacer(Modifier.height(3.dp))
-                WeatherGlyph(h.condition, h.isDay, size = 12.dp)
-                Spacer(Modifier.height(3.dp))
-                Text("${h.temperatureC}°", style = Small.copy(fontWeight = FontWeight.SemiBold, color = Scenic.TextPrimary), maxLines = 1)
             }
         }
     }
@@ -180,16 +157,6 @@ private fun PlaceLabel(location: WeatherLocation) {
     }
 }
 
-private fun hourLabel(hour: Int, use24Hour: Boolean): String =
-    if (use24Hour) "%02d".format(hour)
-    else when (hour) {
-        0 -> "12AM"
-        12 -> "12PM"
-        in 1..11 -> "${hour}AM"
-        else -> "${hour - 12}PM"
-    }
-
 private val WIDGET_WIDTH = 215.dp
 private val BigTemp = TextStyle(fontFamily = InterDisplay, fontWeight = FontWeight.Light, fontSize = 29.sp, lineHeight = 33.sp, letterSpacing = (-1).sp, color = Scenic.TextPrimary, shadow = WidgetShadow)
 private val Detail = TextStyle(fontFamily = InterText, fontWeight = FontWeight.Medium, fontSize = 9.5.sp, lineHeight = 12.sp, color = Scenic.TextPrimary.copy(alpha = 0.78f), fontFeatureSettings = "tnum", shadow = WidgetShadow)
-private val Small = TextStyle(fontFamily = InterText, fontWeight = FontWeight.Medium, fontSize = 8.5.sp, lineHeight = 10.sp, color = Scenic.TextPrimary.copy(alpha = 0.78f), fontFeatureSettings = "tnum", shadow = WidgetShadow)

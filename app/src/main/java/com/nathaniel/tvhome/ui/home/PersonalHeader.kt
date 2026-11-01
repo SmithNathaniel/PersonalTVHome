@@ -61,21 +61,21 @@ fun PersonalHeader(
         Text("Welcome", style = Scenic.Welcome)
         Text(OWNER_NAME, style = Scenic.Name)
         Spacer(Modifier.height(4.dp))
-        Row(Modifier.trimVertical(top = 12.dp, bottom = 10.dp), verticalAlignment = Alignment.Bottom) {
+        Row(Modifier.trimVertical(top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.Bottom) {
             Text(now.format(DateTimeFormatter.ofPattern(timePattern, locale)), style = Scenic.Clock)
             if (!use24Hour) {
                 Spacer(Modifier.width(6.dp))
                 Text(
                     now.format(DateTimeFormatter.ofPattern("a", locale)),
-                    style = Scenic.Date.copy(fontSize = 19.sp, fontWeight = FontWeight.SemiBold),
-                    modifier = Modifier.padding(bottom = 7.dp),
+                    style = Scenic.Date.copy(fontSize = 22.sp, fontWeight = FontWeight.SemiBold),
+                    modifier = Modifier.padding(bottom = 8.dp),
                 )
             }
         }
         Spacer(Modifier.height(4.dp))
         Text(now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale)), style = Scenic.Date)
         Spacer(Modifier.height(12.dp))
-        WeatherWidget(weather, location, use24Hour)
+        WeatherWidget(weather, location)
     }
 }
 
