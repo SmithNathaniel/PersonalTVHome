@@ -60,7 +60,7 @@ fun PersonalHeader(
     Column(modifier) {
         Text("Welcome", style = Scenic.Welcome)
         Text(OWNER_NAME, style = Scenic.Name)
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(14.dp))
         Row(Modifier.trimVertical(top = 14.dp, bottom = 12.dp), verticalAlignment = Alignment.Bottom) {
             Text(now.format(DateTimeFormatter.ofPattern(timePattern, locale)), style = Scenic.Clock)
             if (!use24Hour) {
@@ -72,9 +72,9 @@ fun PersonalHeader(
                 )
             }
         }
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(8.dp))
         Text(now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", locale)), style = Scenic.Date)
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(24.dp))
         WeatherWidget(weather, location)
     }
 }
