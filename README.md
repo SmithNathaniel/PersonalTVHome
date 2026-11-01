@@ -6,7 +6,7 @@ Built with Kotlin, Jetpack Compose and Compose for TV.
 
 ## Features
 
-- **Personal header**: a welcome line, your name, a live clock, the date and current weather (Open-Meteo, no API key needed).
+- **Personal header**: a welcome line, your name, a live clock and the date, with an Apple Weather–style widget alongside (place, temperature, condition, high/low and the next few hours; Open-Meteo, no API key needed).
 - **Glass app dock**: five favourite apps plus All Apps. Hold OK (or press Menu) on an app to reorder, remove or add it.
 - **Now Playing**: an Apple-style player for Spotify, YouTube Music, SoundCloud and music cast to the TV (Google Cast / Spotify Connect). It shows the artwork, title, artist, the source app's icon, elapsed and remaining time, and playback controls, read from Android media sessions. The full-screen view sits on a frosted version of your wallpaper.
 - **Lyrics**: synced lyrics from [LRCLIB](https://lrclib.net). The widget shows the line being sung; the full-screen player shows Apple Music–style scrolling lyrics. Turn them on or off with the lyrics button in the player or in **Appearance → Lyrics**.
@@ -124,3 +124,4 @@ The launcher is personalised in code. Change these before you build:
 - Photography from [Unsplash](https://unsplash.com) contributors.
 - Weather data from [Open-Meteo](https://open-meteo.com).
 - Lyrics from [LRCLIB](https://lrclib.net), a free and open lyrics database.
+- [Inter](https://rsms.me/inter/) typeface by Rasmus Andersson, under the SIL Open Font License 1.1 ([licence](third_party/inter/LICENSE.txt)).

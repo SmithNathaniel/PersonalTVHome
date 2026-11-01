@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Composable
@@ -68,7 +69,11 @@ fun HomeScreen() {
             showSeconds = prefs.showSeconds,
             weather = weather,
             location = prefs.weatherLocation,
-            modifier = Modifier.align(Alignment.TopStart).padding(start = 56.dp, top = 40.dp),
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(start = 56.dp, top = 40.dp)
+                // Never reach under the Now Playing widget and Settings button in the top-right.
+                .widthIn(max = (maxWidth - 56.dp - TOP_RIGHT_RESERVED).coerceAtLeast(240.dp)),
         )
 
         Row(
@@ -115,3 +120,6 @@ fun HomeScreen() {
         }
     }
 }
+
+/** End padding + Settings button + gap + Now Playing widget + breathing room. */
+private val TOP_RIGHT_RESERVED = 48.dp + 46.dp + 14.dp + 250.dp + 28.dp

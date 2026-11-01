@@ -23,12 +23,20 @@ import java.net.URLEncoder
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+/** One hour of forecast; [hour] is the local hour of day (0–23). */
+data class HourlyForecast(val hour: Int, val temperatureC: Int, val code: Int, val isDay: Boolean) {
+    val condition: WeatherCondition get() = WeatherCondition.fromWmo(code)
+}
+
 data class CurrentWeather(
     val temperatureC: Int,
+    val feelsLikeC: Int?,
     val highC: Int?,
     val lowC: Int?,
     val code: Int,
     val isDay: Boolean,
+    /** The current hour followed by the next few hours. */
+    val hourly: List<HourlyForecast>,
     val updatedAtMillis: Long,
 ) {
     val condition: WeatherCondition get() = WeatherCondition.fromWmo(code)
@@ -83,19 +91,44 @@ class WeatherRepository(private val scope: CoroutineScope, locations: Flow<Weath
 
     private suspend fun fetch(location: WeatherLocation): CurrentWeather = withContext(Dispatchers.IO) {
         val url = "https://api.open-meteo.com/v1/forecast?latitude=${location.latitude}&longitude=${location.longitude}" +
-            "&current=temperature_2m,weather_code,is_day&daily=temperature_2m_max,temperature_2m_min" +
-            "&forecast_days=1&timezone=auto"
+            "&current=temperature_2m,apparent_temperature,weather_code,is_day" +
+            "&hourly=temperature_2m,weather_code,is_day" +
+            "&daily=temperature_2m_max,temperature_2m_min" +
+            "&forecast_days=2&timezone=auto"
         val json = JSONObject(httpGet(url))
         val current = json.getJSONObject("current")
         val daily = json.optJSONObject("daily")
         CurrentWeather(
             temperatureC = current.getDouble("temperature_2m").roundToInt(),
+            feelsLikeC = current.optDouble("apparent_temperature").takeIf { !it.isNaN() }?.roundToInt(),
+            hourly = parseHourly(json.optJSONObject("hourly"), current.optString("time")),
             highC = daily?.optJSONArray("temperature_2m_max")?.optDouble(0)?.takeIf { !it.isNaN() }?.roundToInt(),
             lowC = daily?.optJSONArray("temperature_2m_min")?.optDouble(0)?.takeIf { !it.isNaN() }?.roundToInt(),
             code = current.getInt("weather_code"),
             isDay = current.optInt("is_day", 1) == 1,
             updatedAtMillis = System.currentTimeMillis(),
         )
+    }
+
+    /**
+     * Picks the hour containing [currentTime] and the next [HOURS_SHOWN] - 1 hours. Times are local
+     * ISO strings (e.g. "2026-11-01T21:00") because the request uses timezone=auto.
+     */
+    private fun parseHourly(hourly: JSONObject?, currentTime: String): List<HourlyForecast> {
+        hourly ?: return emptyList()
+        val times = hourly.optJSONArray("time") ?: return emptyList()
+        val temps = hourly.optJSONArray("temperature_2m") ?: return emptyList()
+        val codes = hourly.optJSONArray("weather_code") ?: return emptyList()
+        val days = hourly.optJSONArray("is_day")
+        val currentHour = currentTime.take(13) // "yyyy-MM-ddTHH"
+        var start = (0 until times.length()).indexOfFirst { times.optString(it).take(13) == currentHour }
+        if (start < 0) start = 0
+        return (start until minOf(times.length(), start + HOURS_SHOWN)).mapNotNull { i ->
+            val time = times.optString(i)
+            val hour = time.substringAfter('T', "").take(2).toIntOrNull() ?: return@mapNotNull null
+            val temp = temps.optDouble(i).takeIf { !it.isNaN() } ?: return@mapNotNull null
+            HourlyForecast(hour, temp.roundToInt(), codes.optInt(i), (days?.optInt(i, 1) ?: 1) == 1)
+        }
     }
 
     /** City search for the weather-location setting. */
@@ -129,5 +162,6 @@ class WeatherRepository(private val scope: CoroutineScope, locations: Flow<Weath
         const val REFRESH_MS = 15 * 60_000L
         const val RETRY_MS = 30_000L
         const val MIN_FOREGROUND_REFRESH_MS = 5 * 60_000L
+        const val HOURS_SHOWN = 6
     }
 }

@@ -6,14 +6,34 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.geometry.Offset
 import androidx.tv.material3.MaterialTheme
 import androidx.tv.material3.darkColorScheme
+import com.nathaniel.tvhome.R
 import com.nathaniel.tvhome.prefs.GlassOpacity
 import com.nathaniel.tvhome.prefs.GlassTint
+
+/** Inter (SIL OFL 1.1, see third_party/inter): the closest open match to Apple's SF Pro. */
+val InterText = FontFamily(
+    Font(R.font.inter_regular, FontWeight.Normal),
+    Font(R.font.inter_medium, FontWeight.Medium),
+    Font(R.font.inter_semibold, FontWeight.SemiBold),
+    Font(R.font.inter_bold, FontWeight.Bold),
+)
+
+/** Inter Display: tighter spacing and finer detail for large sizes, like SF Pro Display. */
+val InterDisplay = FontFamily(
+    Font(R.font.inter_display_light, FontWeight.Light),
+    Font(R.font.inter_display_regular, FontWeight.Normal),
+    Font(R.font.inter_display_medium, FontWeight.Medium),
+    Font(R.font.inter_display_semibold, FontWeight.SemiBold),
+    // Bold requests fall back to SemiBold so large text stays refined.
+    Font(R.font.inter_display_semibold, FontWeight.Bold),
+)
 
 object Scenic {
     val TextPrimary = Color(0xFFF8F7F4)
@@ -22,24 +42,22 @@ object Scenic {
     val Accent = Color(0xFFFFE3B0)
     val Night = Color(0xFF0B1220)
 
-    private val softShadow = Shadow(Color.Black.copy(alpha = 0.35f), Offset(0f, 2f), 12f)
-    private val family = FontFamily.SansSerif
+    private val softShadow = Shadow(Color.Black.copy(alpha = 0.32f), Offset(0f, 1.5f), 10f)
+    private val text = InterText
+    private val display = InterDisplay
 
-    val Welcome = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 18.sp, letterSpacing = 1.sp, color = TextSecondary, shadow = softShadow)
-    val Name = TextStyle(fontFamily = family, fontWeight = FontWeight.Bold, fontSize = 24.sp, letterSpacing = 0.3.sp, color = TextPrimary, shadow = softShadow)
-    val Clock = TextStyle(fontFamily = family, fontWeight = FontWeight.SemiBold, fontSize = 80.sp, letterSpacing = (-1.5).sp, color = TextPrimary, fontFeatureSettings = "tnum", shadow = softShadow)
-    val Date = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 21.sp, color = TextSecondary, shadow = softShadow)
-    val Body = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 16.sp, color = TextPrimary)
+    val Welcome = TextStyle(fontFamily = text, fontWeight = FontWeight.Medium, fontSize = 17.sp, letterSpacing = 0.1.sp, color = TextPrimary.copy(alpha = 0.72f), shadow = softShadow)
+    val Name = TextStyle(fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, letterSpacing = (-0.4).sp, color = TextPrimary, shadow = softShadow)
+    val Clock = TextStyle(fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 84.sp, lineHeight = 88.sp, letterSpacing = (-3).sp, color = TextPrimary, fontFeatureSettings = "tnum, ss01", shadow = softShadow)
+    val Date = TextStyle(fontFamily = text, fontWeight = FontWeight.Medium, fontSize = 19.sp, letterSpacing = (-0.1).sp, color = TextPrimary.copy(alpha = 0.82f), shadow = softShadow)
+    val Body = TextStyle(fontFamily = text, fontWeight = FontWeight.Normal, fontSize = 16.sp, letterSpacing = (-0.1).sp, color = TextPrimary)
     val BodySecondary = Body.copy(color = TextSecondary)
-    /** Weather line in the personal header. */
-    val Weather = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 21.sp, color = TextPrimary, fontFeatureSettings = "tnum", shadow = softShadow)
-    val WeatherDetail = TextStyle(fontFamily = family, fontWeight = FontWeight.Normal, fontSize = 18.sp, color = TextSecondary, fontFeatureSettings = "tnum", shadow = softShadow)
-    val Caption = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 13.sp, letterSpacing = 0.3.sp, color = TextSecondary)
-    val Label = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 14.sp, color = TextPrimary)
-    val Title = TextStyle(fontFamily = family, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, color = TextPrimary)
-    val ScreenTitle = TextStyle(fontFamily = family, fontWeight = FontWeight.Light, fontSize = 34.sp, letterSpacing = (-0.5).sp, color = TextPrimary, shadow = softShadow)
-    val Section = TextStyle(fontFamily = family, fontWeight = FontWeight.Medium, fontSize = 15.sp, letterSpacing = 1.2.sp, color = TextTertiary)
-    val Tabular = TextStyle(fontFamily = family, fontSize = 13.sp, color = TextSecondary, fontFeatureSettings = "tnum")
+    val Caption = TextStyle(fontFamily = text, fontWeight = FontWeight.Medium, fontSize = 13.sp, color = TextSecondary)
+    val Label = TextStyle(fontFamily = text, fontWeight = FontWeight.Medium, fontSize = 14.sp, letterSpacing = (-0.1).sp, color = TextPrimary)
+    val Title = TextStyle(fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 18.sp, letterSpacing = (-0.2).sp, color = TextPrimary)
+    val ScreenTitle = TextStyle(fontFamily = display, fontWeight = FontWeight.Medium, fontSize = 34.sp, letterSpacing = (-0.8).sp, color = TextPrimary, shadow = softShadow)
+    val Section = TextStyle(fontFamily = text, fontWeight = FontWeight.SemiBold, fontSize = 13.sp, letterSpacing = 0.8.sp, color = TextTertiary)
+    val Tabular = TextStyle(fontFamily = text, fontWeight = FontWeight.Medium, fontSize = 13.sp, color = TextSecondary, fontFeatureSettings = "tnum")
 }
 
 /** Appearance of every glass surface, driven by the Appearance settings. */
