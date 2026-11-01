@@ -5,6 +5,17 @@ import androidx.compose.ui.graphics.ImageBitmap
 
 /** Music apps whose sessions drive the Now Playing experience. */
 object MusicSources {
+    data class Launchable(val name: String, val packageName: String)
+
+    /** Offered on the empty Now Playing screen, in this order, when installed. */
+    val launchable = listOf(
+        Launchable("Spotify", "com.spotify.tv.android"),
+        Launchable("Spotify", "com.spotify.music"),
+        Launchable("YouTube Music", "com.google.android.youtube.tvmusic"),
+        Launchable("YouTube Music", "com.google.android.apps.youtube.music"),
+        Launchable("SoundCloud", "com.soundcloud.android"),
+    )
+
     private val names = mapOf(
         "com.google.android.youtube.tvmusic" to "YouTube Music",
         "com.google.android.apps.youtube.music" to "YouTube Music",
@@ -17,6 +28,8 @@ object MusicSources {
         "com.aspiro.tidal" to "TIDAL",
         "com.amazon.mp3" to "Amazon Music",
         "com.audiomack" to "Audiomack",
+        // Music cast to the TV (e.g. Spotify Connect or YouTube Music via Chromecast built-in).
+        "com.google.android.apps.mediashell" to "Google Cast",
     )
 
     fun isMusic(packageName: String) = packageName in names

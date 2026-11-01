@@ -38,7 +38,7 @@ import com.nathaniel.tvhome.ui.navigation.Navigator
 import com.nathaniel.tvhome.ui.navigation.Screen
 import com.nathaniel.tvhome.ui.rememberLauncherActions
 import com.nathaniel.tvhome.ui.screens.AppGrid
-import com.nathaniel.tvhome.ui.screens.ReadabilityShade
+import com.nathaniel.tvhome.ui.screens.FrostedWallpaper
 import com.nathaniel.tvhome.ui.screens.NowPlayingContent
 import com.nathaniel.tvhome.ui.theme.PersonalTvTheme
 import com.nathaniel.tvhome.wallpaper.Blur
@@ -163,7 +163,7 @@ class ScreenshotTest {
         compose.setContent {
             Frame {
                 val np = sampleTrack()
-                ReadabilityShade()
+                FrostedWallpaper()
                 NowPlayingContent(np)
             }
         }

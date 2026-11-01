@@ -222,22 +222,58 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
         }
     }
 
+    /**
+     * Loads artwork published by a music app. Only HTTPS and content URIs are accepted, downloads are
+     * size-capped, and images are downsampled while decoding so a huge image can't exhaust memory.
+     */
     private fun loadUri(raw: String): Bitmap? {
-        val uri = Uri.parse(raw)
-        return when (uri.scheme) {
-            "http", "https" -> {
-                val connection = (URL(raw).openConnection() as HttpURLConnection).apply {
+        val uri = Uri.parse(spotifyImageUrl(raw) ?: raw)
+        val bytes: ByteArray = when (uri.scheme?.lowercase()) {
+            "https" -> {
+                val connection = (URL(uri.toString()).openConnection() as HttpURLConnection).apply {
                     connectTimeout = 8_000
                     readTimeout = 10_000
+                    instanceFollowRedirects = true
                 }
                 try {
-                    connection.inputStream.use(BitmapFactory::decodeStream)
+                    if (connection.responseCode != HttpURLConnection.HTTP_OK) return null
+                    if (connection.contentLengthLong > MAX_ART_BYTES) return null
+                    connection.inputStream.use { readCapped(it) } ?: return null
                 } finally {
                     connection.disconnect()
                 }
             }
-            else -> context.contentResolver.openInputStream(uri)?.use(BitmapFactory::decodeStream)
+            "content", "android.resource" -> context.contentResolver.openInputStream(uri)?.use { readCapped(it) } ?: return null
+            else -> return null
         }
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (max(bounds.outWidth, bounds.outHeight) / (sample * 2) >= ART_TARGET_PX) sample *= 2
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inSampleSize = sample })
+    }
+
+    private fun readCapped(input: java.io.InputStream): ByteArray? {
+        val out = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(16 * 1024)
+        var total = 0L
+        while (true) {
+            val n = input.read(buffer)
+            if (n < 0) break
+            total += n
+            if (total > MAX_ART_BYTES) return null
+            out.write(buffer, 0, n)
+        }
+        return out.toByteArray()
+    }
+
+    /** Spotify publishes artwork as `spotify:image:<id>`, which maps to its public image CDN. */
+    private fun spotifyImageUrl(raw: String): String? {
+        val prefix = "spotify:image:"
+        if (!raw.startsWith(prefix)) return null
+        val id = raw.removePrefix(prefix)
+        return if (id.matches(Regex("[A-Za-z0-9]{16,64}"))) "https://i.scdn.co/image/$id" else null
     }
 
     private fun unregisterAll() {
@@ -264,5 +300,7 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
         const val TAG = "MediaRepository"
         const val IDLE_GRACE_MS = 3_000L
         const val POSITION_TOLERANCE_MS = 1_500L
+        const val MAX_ART_BYTES = 8L * 1024 * 1024
+        const val ART_TARGET_PX = 640
     }
 }
