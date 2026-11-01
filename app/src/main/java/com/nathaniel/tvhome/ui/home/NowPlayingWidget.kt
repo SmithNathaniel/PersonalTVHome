@@ -334,9 +334,9 @@ private fun ExpressiveButton(
     val halo by animateFloatAsState(if (focused) 1f else 0f, tween(360), label = "xHalo")
     val tint = lerp(if (enabled) Scenic.TextPrimary else Scenic.TextPrimary.copy(alpha = 0.3f), Color(0xFF111111), fill)
 
-    Box(modifier.size(size * 1.5f), contentAlignment = Alignment.Center) {
+    Box(modifier.size(size * 1.3f), contentAlignment = Alignment.Center) {
         // Soft glow that blooms behind the focused button.
-        Canvas(Modifier.size(size * 1.5f).graphicsLayer { alpha = halo }) {
+        Canvas(Modifier.size(size * 1.3f).graphicsLayer { alpha = halo }) {
             drawCircle(
                 Brush.radialGradient(listOf(Color.White.copy(alpha = 0.32f), Color.Transparent), radius = this.size.minDimension / 2),
             )

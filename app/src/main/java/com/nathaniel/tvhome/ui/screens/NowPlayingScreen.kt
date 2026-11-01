@@ -142,9 +142,9 @@ internal fun NowPlayingContent(np: NowPlaying) {
             label = "npArt",
         ) { _ ->
             val shape = RoundedCornerShape(18.dp)
-            Artwork(np, 340.dp, shape, Modifier.shadow(48.dp, shape, ambientColor = Color.Black, spotColor = Color.Black))
+            Artwork(np, 300.dp, shape, Modifier.shadow(48.dp, shape, ambientColor = Color.Black, spotColor = Color.Black))
         }
-        Spacer(Modifier.width(64.dp))
+        Spacer(Modifier.width(56.dp))
         Column(Modifier.weight(1f)) {
             SourceBadge(np, iconSize = 22.dp, textSize = 15.sp)
             Spacer(Modifier.height(14.dp))
@@ -177,27 +177,31 @@ internal fun NowPlayingContent(np: NowPlaying) {
             Spacer(Modifier.height(36.dp))
             Scrubber(np, position, Modifier.fillMaxWidth(), barHeight = 6.dp, labelSize = 14.sp)
             Spacer(Modifier.height(22.dp))
-            Box(Modifier.fillMaxWidth()) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                // Balances the open-app button so the transport controls stay centred under the scrubber.
+                Spacer(Modifier.width(OPEN_BUTTON_SIZE))
+                Spacer(Modifier.weight(1f))
                 TransportControls(
                     np,
                     container.media::playPause,
                     container.media::skipNext,
                     container.media::skipPrevious,
-                    playSize = 72.dp,
-                    skipSize = 60.dp,
-                    spacing = 36.dp,
+                    playSize = 64.dp,
+                    skipSize = 52.dp,
+                    spacing = 10.dp,
                     expressive = true,
-                    modifier = Modifier.align(Alignment.Center),
                     playModifier = Modifier.focusRequester(playFocus),
                 )
+                Spacer(Modifier.weight(1f))
                 GlassButton(
                     text = null,
                     icon = Icons.AutoMirrored.Rounded.OpenInNew,
                     onClick = { container.media.openSourceApp() },
-                    height = 44.dp,
-                    modifier = Modifier.align(Alignment.CenterEnd),
+                    height = OPEN_BUTTON_SIZE,
                 )
             }
         }
     }
 }
+
+private val OPEN_BUTTON_SIZE = 44.dp
