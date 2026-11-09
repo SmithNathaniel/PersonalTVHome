@@ -17,8 +17,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onRoot
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.github.takahirom.roborazzi.captureRoboImage
@@ -26,6 +33,8 @@ import com.nathaniel.tvhome.apps.AppCategory
 import com.nathaniel.tvhome.apps.LauncherApp
 import com.nathaniel.tvhome.media.MediaState
 import com.nathaniel.tvhome.media.NowPlaying
+import com.nathaniel.tvhome.lyrics.Lyrics
+import com.nathaniel.tvhome.lyrics.LyricsState
 import com.nathaniel.tvhome.ui.LocalActions
 import com.nathaniel.tvhome.ui.LocalContainer
 import com.nathaniel.tvhome.ui.TvHomeRoot
@@ -40,12 +49,16 @@ import com.nathaniel.tvhome.ui.rememberLauncherActions
 import com.nathaniel.tvhome.ui.screens.AppGrid
 import com.nathaniel.tvhome.ui.screens.ReadabilityShade
 import com.nathaniel.tvhome.ui.screens.NowPlayingContent
+import com.nathaniel.tvhome.ui.screens.CenteredPlayer
+import com.nathaniel.tvhome.ui.screens.partyVisualizerBarLength
 import com.nathaniel.tvhome.ui.theme.PersonalTvTheme
 import com.nathaniel.tvhome.wallpaper.Blur
 import com.nathaniel.tvhome.wallpaper.Scene
 import com.nathaniel.tvhome.wallpaper.ScenePainter
 import org.junit.Rule
 import org.junit.Test
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
@@ -169,6 +182,71 @@ class ScreenshotTest {
         }
         compose.mainClock.advanceTimeBy(1_500)
         compose.onRoot().captureRoboImage("build/screens/06_now_playing.png")
+    }
+
+    @Test
+    fun normalPlayerIdleWithoutLyrics() = verifyPlayerIdle(partyMode = false, withLyrics = false)
+
+    @Test
+    fun partyPlayerIdleWithoutLyrics() = verifyPlayerIdle(partyMode = true, withLyrics = false)
+
+    @Test
+    fun normalPlayerIdleWithLyrics() = verifyPlayerIdle(partyMode = false, withLyrics = true)
+
+    @Test
+    fun partyPlayerIdleWithLyrics() = verifyPlayerIdle(partyMode = true, withLyrics = true)
+
+    @Test
+    fun partyVisualizerBarsAreTenPercentShorter() {
+        for (strength in listOf(0f, 0.12f, 0.5f, 1f)) {
+            for (envelope in listOf(0.36f, 1f)) {
+                val originalLength = 4f + 38f * strength * envelope
+                assertEquals(originalLength * 0.9f, partyVisualizerBarLength(4f, 38f, strength, envelope), 0.0001f)
+            }
+        }
+    }
+
+    @OptIn(ExperimentalTestApi::class)
+    private fun verifyPlayerIdle(partyMode: Boolean, withLyrics: Boolean) {
+        compose.setContent {
+            Frame {
+                val focus = remember { FocusRequester() }
+                CenteredPlayer(
+                    np = sampleTrack(),
+                    position = 83_000,
+                    lyrics = if (withLyrics) Lyrics.Plain(listOf("Test lyric")) else null,
+                    lyricsEnabled = withLyrics,
+                    lyricsState = LyricsState.Idle,
+                    playFocus = focus,
+                    onToggleLyrics = {},
+                    onOpenSource = {},
+                )
+            }
+        }
+        compose.mainClock.advanceTimeBy(1_000)
+        if (partyMode) {
+            compose.onNodeWithContentDescription("Turn on Party Mode").performClick()
+            compose.mainClock.advanceTimeBy(1_000)
+        }
+        val artwork = compose.onNodeWithContentDescription("Test Track Title artwork")
+        val activeBounds = artwork.getUnclippedBoundsInRoot()
+        compose.mainClock.advanceTimeBy(3_000)
+        assertEquals(activeBounds.top.value, artwork.getUnclippedBoundsInRoot().top.value, 0.1f)
+        compose.mainClock.advanceTimeBy(2_500)
+        val idleBounds = artwork.getUnclippedBoundsInRoot()
+        if (withLyrics) {
+            assertTrue(idleBounds.right - idleBounds.left > (activeBounds.right - activeBounds.left) * 1.15f)
+        } else {
+            assertTrue(idleBounds.top > activeBounds.top + 30.dp)
+        }
+        compose.onNodeWithContentDescription("Pause").performKeyInput {
+            keyDown(Key.DirectionDown)
+            keyUp(Key.DirectionDown)
+        }
+        compose.mainClock.advanceTimeBy(1_000)
+        val awakeBounds = artwork.getUnclippedBoundsInRoot()
+        assertEquals(activeBounds.top.value, awakeBounds.top.value, 1f)
+        assertEquals((activeBounds.right - activeBounds.left).value, (awakeBounds.right - awakeBounds.left).value, 1f)
     }
 
     @Test

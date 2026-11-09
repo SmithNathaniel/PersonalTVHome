@@ -84,6 +84,15 @@ fun GlassButton(
     height: Dp = 44.dp,
     textSize: TextUnit = TextUnit.Unspecified,
     iconSize: Dp = 20.dp,
+    /** Literal background colour, overriding the user's Appearance tint when set. */
+    background: Color? = null,
+    /** Flat white border at this alpha, overriding the default illuminated gradient edge when set. */
+    borderAlpha: Float? = null,
+    /** Use the more heavily blurred wallpaper variant behind this surface. */
+    strongBlur: Boolean = false,
+    shadowAlpha: Float = 0.45f,
+    /** Accessible name for the icon, used only when this button has no visible text. */
+    iconContentDescription: String? = null,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
@@ -100,13 +109,17 @@ fun GlassButton(
     GlassSurface(
         shape = shape,
         elevation = if (focused) 14.dp else 6.dp,
+        background = background,
+        borderAlpha = if (focused) 0.9f else borderAlpha,
+        strongBlur = strongBlur,
+        shadowAlpha = shadowAlpha,
         modifier = modifier
             .graphicsLayer { scaleX = scale; scaleY = scale }
             .tvClickable(interaction) { if (enabled) onClick() },
     ) {
         if (text == null) {
             Box(Modifier.size(height).background(fill, shape), contentAlignment = Alignment.Center) {
-                if (icon != null) Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(height * 0.46f))
+                if (icon != null) Icon(icon, contentDescription = iconContentDescription, tint = content, modifier = Modifier.size(height * 0.46f))
             }
         } else {
             Row(
@@ -135,7 +148,23 @@ fun GlassIconButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
     size: Dp = 46.dp,
-) = GlassButton(text = null, onClick = onClick, modifier = modifier, icon = icon, shape = CircleShape, height = size)
+    background: Color? = null,
+    borderAlpha: Float? = null,
+    strongBlur: Boolean = false,
+    shadowAlpha: Float = 0.45f,
+) = GlassButton(
+    text = null,
+    onClick = onClick,
+    modifier = modifier,
+    icon = icon,
+    shape = CircleShape,
+    height = size,
+    background = background,
+    borderAlpha = borderAlpha,
+    strongBlur = strongBlur,
+    shadowAlpha = shadowAlpha,
+    iconContentDescription = contentDescription,
+)
 
 /** Focus-scaled container used by tiles; content stays put while it gently grows and lifts. */
 @Composable

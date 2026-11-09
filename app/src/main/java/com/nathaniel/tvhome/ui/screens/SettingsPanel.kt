@@ -93,6 +93,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsPanel(modifier: Modifier = Modifier) {
     val navigator = LocalNavigator.current
+    val appOptionsOpen = navigator.appOptions != null
     GlassSurface(
         RoundedCornerShape(30.dp),
         tintBoost = 0.22f,
@@ -102,7 +103,7 @@ fun SettingsPanel(modifier: Modifier = Modifier) {
             .fillMaxHeight()
             .padding(vertical = 18.dp)
             // Keep D-pad focus inside the panel while it is open.
-            .focusProperties { exit = { FocusRequester.Cancel } }
+            .focusProperties { exit = { if (appOptionsOpen) FocusRequester.Default else FocusRequester.Cancel } }
             .focusGroup(),
     ) {
         AnimatedContent(

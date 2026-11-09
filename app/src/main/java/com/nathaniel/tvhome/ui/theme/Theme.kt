@@ -36,6 +36,18 @@ val InterDisplay = FontFamily(
     Font(R.font.inter_display_semibold, FontWeight.Bold),
 )
 
+/** Exact glass specs for the top-right status controls and the app dock. */
+object GlassSpec {
+    val StatusBackground = Color(0xFF0F1113).copy(alpha = 0.19f)
+    const val StatusBorderAlpha = 0.18f
+    const val StatusShadowAlpha = 0.12f
+
+    // Wallpaper-neutral charcoal rather than a navy tint, so the dock reads true-dark on any scene.
+    val DockBackground = Color(0xFF26282C).copy(alpha = 0.45f)
+    const val DockBorderAlpha = 0.27f
+    const val DockShadowAlpha = 0.22f
+}
+
 object Scenic {
     val TextPrimary = Color(0xFFF8F7F4)
     val TextSecondary = Color(0xFFF8F7F4).copy(alpha = 0.74f)
@@ -50,7 +62,7 @@ object Scenic {
     val Welcome = TextStyle(fontFamily = text, fontWeight = FontWeight.Medium, fontSize = 17.sp, letterSpacing = 0.1.sp, color = TextPrimary.copy(alpha = 0.72f), shadow = softShadow)
     val Name = TextStyle(fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 26.sp, letterSpacing = (-0.4).sp, color = TextPrimary, shadow = softShadow)
     val Clock = TextStyle(
-        fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 84.sp, lineHeight = 84.sp, letterSpacing = (-3).sp,
+        fontFamily = display, fontWeight = FontWeight.SemiBold, fontSize = 131.sp, lineHeight = 131.sp, letterSpacing = (-3).sp,
         color = TextPrimary, fontFeatureSettings = "tnum, ss01", shadow = softShadow,
         lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
     )
@@ -71,7 +83,8 @@ data class GlassStyle(val tint: Color, val tintAlpha: Float) {
     companion object {
         fun from(tint: GlassTint, opacity: GlassOpacity) = GlassStyle(
             tint = when (tint) {
-                GlassTint.Dark -> Color(0xFF0A0E16)
+                // Neutral charcoal rather than a fixed blue-black, so it reads true-dark on any wallpaper.
+                GlassTint.Dark -> Color(0xFF0F1113)
                 GlassTint.Neutral -> Color(0xFF2A2D33)
                 GlassTint.Warm -> Color(0xFF2E2117)
                 GlassTint.Cool -> Color(0xFF0E2236)

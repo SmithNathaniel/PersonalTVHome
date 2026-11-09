@@ -1,6 +1,7 @@
 package com.nathaniel.tvhome
 
 import android.content.Intent
+import android.media.AudioManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -10,6 +11,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.nathaniel.tvhome.ui.TvHomeRoot
 import com.nathaniel.tvhome.ui.navigation.Navigator
 import com.nathaniel.tvhome.ui.theme.PersonalTvTheme
+import com.nathaniel.tvhome.system.VolumeHudController
 
 /** The launcher activity; registered for the HOME category so it can be the default home app. */
 class MainActivity : ComponentActivity() {
@@ -19,6 +21,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        setVolumeControlStream(AudioManager.STREAM_MUSIC)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         WindowInsetsControllerCompat(window, window.decorView).apply {
             hide(WindowInsetsCompat.Type.systemBars())
@@ -26,7 +29,7 @@ class MainActivity : ComponentActivity() {
         }
         setContent {
             PersonalTvTheme {
-                TvHomeRoot(container, navigator)
+                TvHomeRoot(container, navigator, VolumeHudController.percent)
             }
         }
     }

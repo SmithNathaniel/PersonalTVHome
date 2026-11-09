@@ -8,6 +8,7 @@ import com.nathaniel.tvhome.prefs.UserPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -15,9 +16,11 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.transformLatest
+import kotlin.math.roundToInt
 
 /** The wallpaper behind the interface plus its blurred copy for glass. */
 @Immutable
@@ -25,6 +28,8 @@ data class Scene(
     val key: String,
     val image: ImageBitmap,
     val glass: ImageBitmap,
+    /** More heavily blurred copy for surfaces specified with a larger blur radius (e.g. the dock). */
+    val glassStrong: ImageBitmap = glass,
 )
 
 /** Prepares the chosen wallpaper (or a gallery preview) plus its blurred copy for glass surfaces. */
@@ -43,10 +48,22 @@ class SceneController(
 
     private data class WallpaperRequest(val id: String, val blur: BlurLevel)
 
+    val christmasSeason: StateFlow<Boolean> = flow {
+        while (true) {
+            emit(WallpaperCatalog.isChristmasSeason())
+            delay(60_000L)
+        }
+    }
+        .distinctUntilChanged()
+        .stateIn(scope, SharingStarted.Eagerly, WallpaperCatalog.isChristmasSeason())
+
     private val wallpaperScene: Flow<Scene> = combine(
         preferences.map { it.wallpaperId to it.blurLevel }.distinctUntilChanged(),
         previewWallpaperId,
-    ) { (id, blur), preview -> WallpaperRequest(preview ?: id, blur) }
+        christmasSeason,
+    ) { (id, blur), preview, isChristmas ->
+        WallpaperRequest(preview ?: if (isChristmas) WallpaperCatalog.christmas.id else id, blur)
+    }
         .distinctUntilChanged()
         .transformLatest { request ->
             val wallpaper = if (request.id.isEmpty()) WallpaperCatalog.default else WallpaperCatalog.byId(request.id)
@@ -68,5 +85,6 @@ class SceneController(
         key = "wall:$id",
         image = bitmap.asImageBitmap(),
         glass = Blur.blurred(bitmap, blur.radius).asImageBitmap(),
+        glassStrong = Blur.blurred(bitmap, (blur.radius * 1.3f).roundToInt().coerceAtLeast(blur.radius + 1)).asImageBitmap(),
     )
 }

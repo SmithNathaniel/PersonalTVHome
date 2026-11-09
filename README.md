@@ -9,6 +9,7 @@ Built with Kotlin, Jetpack Compose and Compose for TV.
 - **Personal header**: a welcome line, your name, a live clock and the date, with an Apple Weather–style widget alongside (place, temperature, condition, high/low and the next few hours; Open-Meteo, no API key needed).
 - **Glass app dock**: five favourite apps plus All Apps. Hold OK (or press Menu) on an app to reorder, remove or add it.
 - **Now Playing**: an Apple-style player for Spotify, YouTube Music, SoundCloud and music cast to the TV (Google Cast / Spotify Connect). It shows the artwork, title, artist, the source app's icon, elapsed and remaining time, and playback controls, read from Android media sessions. The full-screen view sits on a frosted version of your wallpaper.
+- **Player idle mode**: after five seconds without remote input, the full-screen player fades its playback controls and adjusts the layout, both in normal and Party Mode. Press a remote key to reveal the controls again.
 - **Lyrics**: synced lyrics from [LRCLIB](https://lrclib.net). The widget shows the line being sung; the full-screen player shows Apple Music–style scrolling lyrics. Turn them on or off with the lyrics button in the player or in **Appearance → Lyrics**.
 - **Wallpapers**: a set of Unsplash photos that change automatically every 10 minutes (you can turn this off). Photos are cached on the TV.
 - **Appearance**: glass tint, opacity, blur and dock size.

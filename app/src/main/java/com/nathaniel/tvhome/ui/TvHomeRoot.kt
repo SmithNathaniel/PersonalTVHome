@@ -39,6 +39,7 @@ import com.nathaniel.tvhome.ui.components.BackdropState
 import com.nathaniel.tvhome.ui.components.LocalBackdrop
 import com.nathaniel.tvhome.ui.components.MessageHost
 import com.nathaniel.tvhome.ui.components.ScenicBackground
+import com.nathaniel.tvhome.ui.components.VolumeHud
 import com.nathaniel.tvhome.ui.home.HomeScreen
 import com.nathaniel.tvhome.ui.navigation.LocalNavigator
 import com.nathaniel.tvhome.ui.navigation.Navigator
@@ -52,13 +53,20 @@ import com.nathaniel.tvhome.ui.screens.WallpapersScreen
 import com.nathaniel.tvhome.ui.theme.GlassStyle
 import com.nathaniel.tvhome.ui.theme.LocalGlassStyle
 import kotlinx.coroutines.android.awaitFrame
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
-fun TvHomeRoot(container: AppContainer, navigator: Navigator) {
+fun TvHomeRoot(
+    container: AppContainer,
+    navigator: Navigator,
+    volumePercent: StateFlow<Int?> = MutableStateFlow(null),
+) {
     val prefs by container.preferences.preferences.collectAsStateWithLifecycle()
     val scene by container.scenes.scene.collectAsStateWithLifecycle()
     val media by container.media.state.collectAsStateWithLifecycle()
+    val currentVolumePercent by volumePercent.collectAsStateWithLifecycle()
     val backdrop = remember { BackdropState() }
     LaunchedEffect(scene) { backdrop.show(scene) }
 
@@ -149,6 +157,7 @@ fun TvHomeRoot(container: AppContainer, navigator: Navigator) {
                 }
 
                 MessageHost()
+                VolumeHud(currentVolumePercent)
             }
         }
     }

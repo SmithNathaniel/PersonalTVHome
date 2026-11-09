@@ -18,11 +18,14 @@ import androidx.compose.material.icons.rounded.RemoveCircleOutline
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.focusGroup
 import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.focusRequester
@@ -53,7 +56,13 @@ fun AppOptionsSheet(packageName: String, modifier: Modifier = Modifier) {
     val dock = prefs.dockApps.orEmpty()
     val inDock = packageName in dock
     val first = remember { FocusRequester() }
-    LaunchedEffect(Unit) { awaitFrame(); runCatching { first.requestFocus() } }
+    var firstRowPlaced by remember(packageName) { mutableStateOf(false) }
+    LaunchedEffect(packageName, firstRowPlaced) {
+        if (firstRowPlaced) {
+            awaitFrame()
+            runCatching { first.requestFocus() }
+        }
+    }
     fun close() { navigator.appOptions = null }
 
     GlassSurface(
@@ -75,7 +84,14 @@ fun AppOptionsSheet(packageName: String, modifier: Modifier = Modifier) {
                 }
             }
             Spacer(Modifier.height(10.dp))
-            GlassRow(if (app == null) "Get app" else "Open", { close(); actions.launch(packageName) }, Modifier.focusRequester(first), Icons.Rounded.PlayArrow)
+            GlassRow(
+                if (app == null) "Get app" else "Open",
+                { close(); actions.launch(packageName) },
+                Modifier
+                    .focusRequester(first)
+                    .onGloballyPositioned { firstRowPlaced = true },
+                Icons.Rounded.PlayArrow,
+            )
             if (inDock) {
                 GlassRow("Remove from dock", { actions.removeFromDock(packageName); close() }, icon = Icons.Rounded.RemoveCircleOutline)
                 if (dock.indexOf(packageName) > 0) GlassRow("Move left in dock", { actions.moveInDock(packageName, -1) }, icon = Icons.AutoMirrored.Rounded.ArrowBack)

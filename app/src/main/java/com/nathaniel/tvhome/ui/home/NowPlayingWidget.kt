@@ -2,9 +2,6 @@ package com.nathaniel.tvhome.ui.home
 
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.shrinkVertically
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.runtime.rememberCoroutineScope
@@ -13,6 +10,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
@@ -22,10 +20,14 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.focusable
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
+import androidx.compose.foundation.border
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -34,15 +36,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.MusicNote as OutlinedMusicNote
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Pause
@@ -51,6 +58,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -64,9 +72,22 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.ProgressBarRangeInfo
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.progressBarRangeInfo
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.TextUnit
@@ -75,15 +96,15 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.tv.material3.Icon
 import androidx.tv.material3.Text
-import com.nathaniel.tvhome.lyrics.Lyrics
-import com.nathaniel.tvhome.lyrics.LyricsState
 import com.nathaniel.tvhome.media.MediaState
 import com.nathaniel.tvhome.media.NowPlaying
 import com.nathaniel.tvhome.ui.LocalContainer
 import com.nathaniel.tvhome.ui.components.FocusSpring
 import com.nathaniel.tvhome.ui.components.GlassButton
+import com.nathaniel.tvhome.ui.components.GlassIconButton
 import com.nathaniel.tvhome.ui.components.GlassSurface
 import com.nathaniel.tvhome.ui.components.tvClickable
+import com.nathaniel.tvhome.ui.theme.GlassSpec
 import com.nathaniel.tvhome.ui.theme.Scenic
 import kotlinx.coroutines.delay
 
@@ -133,9 +154,25 @@ fun NowPlayingWidget(
         modifier = modifier,
     ) { s ->
         when (s) {
-            is MediaState.Active -> ActiveWidget(s.nowPlaying, onOpen, onPlayPause, onNext, onPrevious)
-            MediaState.Idle -> GlassButton(text = "Not Playing", icon = Icons.Rounded.MusicNote, onClick = onOpen, height = 39.dp, contentPadding = 17.dp, textSize = 13.sp, iconSize = 19.dp)
-            MediaState.PermissionRequired -> GlassButton(text = "Enable Now Playing", icon = Icons.Rounded.GraphicEq, onClick = onEnableAccess, height = 39.dp, contentPadding = 17.dp, textSize = 13.sp, iconSize = 19.dp)
+            is MediaState.Active -> ActiveWidget(s.nowPlaying, onOpen, onPlayPause, onPrevious, onNext)
+            MediaState.Idle -> GlassIconButton(
+                icon = Icons.Outlined.OutlinedMusicNote,
+                contentDescription = "Now Playing",
+                onClick = onOpen,
+                size = 52.dp,
+                background = GlassSpec.StatusBackground,
+                borderAlpha = GlassSpec.StatusBorderAlpha,
+                shadowAlpha = GlassSpec.StatusShadowAlpha,
+            )
+            MediaState.PermissionRequired -> GlassIconButton(
+                icon = Icons.Outlined.OutlinedMusicNote,
+                contentDescription = "Enable Now Playing access",
+                onClick = onEnableAccess,
+                size = 52.dp,
+                background = GlassSpec.StatusBackground,
+                borderAlpha = GlassSpec.StatusBorderAlpha,
+                shadowAlpha = GlassSpec.StatusShadowAlpha,
+            )
         }
     }
 }
@@ -145,64 +182,114 @@ private fun ActiveWidget(
     np: NowPlaying,
     onOpen: () -> Unit,
     onPlayPause: () -> Unit,
-    onNext: () -> Unit,
     onPrevious: () -> Unit,
+    onNext: () -> Unit,
 ) {
     val position = rememberPosition(np)
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val highlight by animateColorAsState(if (focused) Color.White.copy(alpha = 0.16f) else Color.Transparent, tween(180), label = "rowFocus")
-
-    GlassSurface(RoundedCornerShape(17.dp), modifier = Modifier.width(236.dp), tintBoost = -0.06f, elevation = 14.dp) {
-        Column(Modifier.padding(horizontal = 8.dp, vertical = 7.dp)) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(highlight)
-                    .tvClickable(interaction, onClick = onOpen)
-                    .padding(3.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Artwork(np, 46.dp, RoundedCornerShape(10.dp), Modifier.shadow(8.dp, RoundedCornerShape(10.dp)))
-                Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f)) {
-                    TrackTitle(np.title, Scenic.Label.copy(fontWeight = FontWeight.SemiBold, fontSize = 13.sp, lineHeight = 16.sp, shadow = PlayerShadow), focused)
-                    Text(
-                        np.artist,
-                        style = Scenic.Caption.copy(fontSize = 11.sp, lineHeight = 14.sp, color = Scenic.TextPrimary.copy(alpha = 0.72f), shadow = PlayerShadow),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    SourceBadge(np, iconSize = 12.dp, textSize = 9.sp)
-                }
+    GlassSurface(
+        RoundedCornerShape(26.dp),
+        modifier = Modifier.width(320.dp).height(92.dp),
+        elevation = 8.dp,
+        background = Color(0xFF0F1113).copy(alpha = 0.12f),
+        borderAlpha = if (focused) 0.9f else GlassSpec.StatusBorderAlpha,
+        shadowAlpha = GlassSpec.StatusShadowAlpha,
+    ) {
+        Box(Modifier.fillMaxSize()) {
+            np.artwork?.let { artwork ->
+                Image(
+                    bitmap = artwork,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize().padding(1.dp).clip(RoundedCornerShape(25.dp)).graphicsLayer { alpha = 0.18f },
+                )
+                Box(
+                    Modifier.fillMaxSize().padding(1.dp).clip(RoundedCornerShape(25.dp))
+                        .background(Color.Black.copy(alpha = 0.08f)),
+                )
             }
-            WidgetLyrics(np)
-            Spacer(Modifier.height(5.dp))
-            Scrubber(np, position, Modifier.padding(horizontal = 3.dp), barHeight = 3.dp, labelSize = 9.sp)
-            Spacer(Modifier.height(2.dp))
-            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                TransportControls(np, onPlayPause, onNext, onPrevious, playSize = 30.dp, skipSize = 26.dp, spacing = 14.dp)
+            Column(Modifier.fillMaxSize().padding(8.dp)) {
+                Row(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(40.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Row(
+                        Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                            .tvClickable(interaction, onClick = onOpen)
+                            .semantics { contentDescription = "Now playing: ${np.title} by ${np.artist}" },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Artwork(np, 40.dp, RoundedCornerShape(9.dp))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            TrackTitle(np.title, Scenic.Label.copy(fontWeight = FontWeight.SemiBold, fontSize = 16.sp, lineHeight = 19.sp, shadow = PlayerShadow), focused)
+                            Spacer(Modifier.height(3.dp))
+                            Text(
+                                np.artist,
+                                style = Scenic.Caption.copy(fontSize = 14.sp, lineHeight = 16.sp, color = Color.White, shadow = PlayerShadow),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    CompactTransportButton(Icons.Rounded.FastRewind, "Previous track", np.canSkipPrevious, onPrevious, 26.dp)
+                    Spacer(Modifier.width(4.dp))
+                    CompactTransportButton(if (np.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (np.isPlaying) "Pause" else "Play", true, onPlayPause, 30.dp)
+                    Spacer(Modifier.width(4.dp))
+                    CompactTransportButton(Icons.Rounded.FastForward, "Next track", np.canSkipNext, onNext, 26.dp)
+                }
+                Spacer(Modifier.height(4.dp))
+                Scrubber(
+                    np,
+                    position,
+                    Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                    barHeight = 3.dp,
+                    labelSize = 9.sp,
+                    labelsBesideTrack = false,
+                    labelTrackSpacing = 2.dp,
+                    trackTouchHeight = 18.dp,
+                )
             }
         }
     }
 }
 
-/** The current synced lyric line, shown only when lyrics are on and available for this song. */
 @Composable
-private fun WidgetLyrics(np: NowPlaying) {
-    val container = LocalContainer.current
-    val state by container.lyrics.state.collectAsStateWithLifecycle()
-    val synced = (state as? LyricsState.Ready)?.takeIf { it.trackKey == np.trackKey }?.lyrics as? Lyrics.Synced
-    AnimatedVisibility(
-        visible = synced != null,
-        enter = fadeIn(tween(300)) + expandVertically(tween(320)),
-        exit = fadeOut(tween(200)) + shrinkVertically(tween(260)),
+private fun CompactTransportButton(
+    icon: ImageVector,
+    description: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    size: Dp,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    Box(
+        Modifier
+            .size(size)
+            .clip(CircleShape)
+            .background(if (focused) Color.White.copy(alpha = 0.92f) else Color.White.copy(alpha = if (enabled) 0.08f else 0.03f))
+            .border(1.dp, Color.White.copy(alpha = if (focused) 0.95f else 0.22f), CircleShape)
+            .tvClickable(interaction) { if (enabled) onClick() }
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
     ) {
-        if (synced != null) {
-            WidgetLyricLine(np, synced, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().padding(start = 3.dp, end = 3.dp, top = 5.dp))
-        }
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = when {
+                focused -> Scenic.Night
+                enabled -> Color.White
+                else -> Color.White.copy(alpha = 0.4f)
+            },
+            modifier = Modifier.size(size * 0.62f),
+        )
     }
 }
 
@@ -254,24 +341,103 @@ fun Artwork(np: NowPlaying, size: Dp, shape: RoundedCornerShape, modifier: Modif
 
 /** Thin rounded progress track with elapsed time on the left and remaining time on the right. */
 @Composable
-internal fun Scrubber(np: NowPlaying, position: Long, modifier: Modifier = Modifier, barHeight: Dp, labelSize: TextUnit) {
-    val fraction = if (np.durationMs > 0) (position / np.durationMs.toFloat()).coerceIn(0f, 1f) else 0f
-    val label = Scenic.Tabular.copy(fontSize = labelSize, fontWeight = FontWeight.Medium, color = Scenic.TextPrimary.copy(alpha = 0.7f), shadow = PlayerShadow)
+internal fun Scrubber(
+    np: NowPlaying,
+    position: Long,
+    modifier: Modifier = Modifier,
+    barHeight: Dp,
+    labelSize: TextUnit,
+    onSeek: ((Long) -> Unit)? = null,
+    labelsBesideTrack: Boolean = false,
+    labelTrackSpacing: Dp = 4.dp,
+    trackTouchHeight: Dp = 32.dp,
+) {
+    val targetFraction = if (np.durationMs > 0) (position / np.durationMs.toFloat()).coerceIn(0f, 1f) else 0f
+    val fraction by animateFloatAsState(
+        targetValue = targetFraction,
+        animationSpec = tween(durationMillis = if (np.isPlaying) 900 else 180, easing = LinearEasing),
+        label = "scrubberProgress",
+    )
+    val latestOnSeek by rememberUpdatedState(onSeek)
+    val interaction = remember { MutableInteractionSource() }
+    val focused by interaction.collectIsFocusedAsState()
+    val label = Scenic.Tabular.copy(fontSize = labelSize, fontWeight = FontWeight.Medium, color = Color.White.copy(alpha = 0.95f), shadow = PlayerShadow)
     Column(modifier) {
-        Canvas(Modifier.fillMaxWidth().height(barHeight).graphicsLayer()) {
-            val r = CornerRadius(size.height / 2)
-            drawRoundRect(Color.White.copy(alpha = 0.24f), cornerRadius = r)
-            if (fraction > 0f) {
-                drawRoundRect(Color.White.copy(alpha = 0.95f), size = Size((size.width * fraction).coerceAtLeast(size.height), size.height), cornerRadius = r)
+        if (labelsBesideTrack) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(formatDuration(position), modifier = Modifier.widthIn(min = 40.dp), style = label, maxLines = 1)
+                Spacer(Modifier.width(8.dp))
+                ScrubberTrack(np, position, targetFraction, fraction, barHeight, focused, interaction, latestOnSeek, Modifier.weight(1f), trackTouchHeight)
+                Spacer(Modifier.width(8.dp))
+                Text(formatRemaining(position, np.durationMs), modifier = Modifier.widthIn(min = 40.dp), style = label, textAlign = TextAlign.End, maxLines = 1)
+            }
+        } else {
+            ScrubberTrack(np, position, targetFraction, fraction, barHeight, focused, interaction, latestOnSeek, Modifier.fillMaxWidth(), trackTouchHeight)
+            Spacer(Modifier.height(labelTrackSpacing))
+            Row(Modifier.fillMaxWidth()) {
+                Text(formatDuration(position), style = label)
+                Spacer(Modifier.weight(1f))
+                Text(formatRemaining(position, np.durationMs), style = label)
             }
         }
-        Spacer(Modifier.height(4.dp))
-        Row(Modifier.fillMaxWidth()) {
-            Text(formatDuration(position), style = label)
-            Spacer(Modifier.weight(1f))
-            Text(formatRemaining(position, np.durationMs), style = label)
-        }
     }
+}
+
+@Composable
+private fun ScrubberTrack(
+    np: NowPlaying,
+    position: Long,
+    targetFraction: Float,
+    fraction: Float,
+    barHeight: Dp,
+    focused: Boolean,
+    interaction: MutableInteractionSource,
+    onSeek: ((Long) -> Unit)?,
+    modifier: Modifier,
+    trackTouchHeight: Dp,
+) {
+        val latestOnSeek by rememberUpdatedState(onSeek)
+        Box(
+            modifier
+                .height(trackTouchHeight)
+                .semantics {
+                    contentDescription = "Playback position"
+                    progressBarRangeInfo = ProgressBarRangeInfo(targetFraction, 0f..1f)
+                }
+                .pointerInput(np.trackKey, np.durationMs) {
+                    detectTapGestures { point ->
+                        if (np.durationMs > 0) latestOnSeek?.invoke((np.durationMs * (point.x / size.width).coerceIn(0f, 1f)).toLong())
+                    }
+                }
+                .pointerInput(np.trackKey, np.durationMs) {
+                    detectDragGestures { change, _ ->
+                        change.consume()
+                        if (np.durationMs > 0) latestOnSeek?.invoke((np.durationMs * (change.position.x / size.width).coerceIn(0f, 1f)).toLong())
+                    }
+                }
+                .onPreviewKeyEvent { event ->
+                    if (event.type != KeyEventType.KeyDown || np.durationMs <= 0 || latestOnSeek == null) return@onPreviewKeyEvent false
+                    val target = when (event.key) {
+                        Key.DirectionLeft -> position - 10_000L
+                        Key.DirectionRight -> position + 10_000L
+                        else -> return@onPreviewKeyEvent false
+                    }
+                    latestOnSeek?.invoke(target.coerceIn(0L, np.durationMs))
+                    true
+                }
+                .focusable(interactionSource = interaction),
+            contentAlignment = Alignment.Center,
+        ) {
+            Canvas(Modifier.fillMaxWidth().height(barHeight).graphicsLayer()) {
+                val r = CornerRadius(size.height / 2)
+                drawRoundRect(Color.White.copy(alpha = if (focused) 0.45f else 0.24f), cornerRadius = r)
+                if (fraction > 0f) {
+                    val progressWidth = (size.width * fraction).coerceAtLeast(size.height)
+                    drawRoundRect(Color.White.copy(alpha = 0.95f), size = Size(progressWidth, size.height), cornerRadius = r)
+                    if (focused) drawCircle(Color.White, radius = 5.dp.toPx(), center = androidx.compose.ui.geometry.Offset(progressWidth.coerceAtMost(size.width), size.height / 2))
+                }
+            }
+        }
 }
 
 /** ⏪ ⏯ ⏩ glyphs; the focused one sits on a white disc, like tvOS. */
@@ -295,9 +461,9 @@ internal fun TransportControls(
             ExpressiveButton(if (np.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (np.isPlaying) "Pause" else "Play", playSize, onPlayPause, modifier = playModifier)
             ExpressiveButton(Icons.Rounded.FastForward, "Next", skipSize, onNext, enabled = np.canSkipNext, nudge = 1)
         } else {
-            GlyphButton(Icons.Rounded.FastRewind, "Previous", skipSize, onPrevious, enabled = np.canSkipPrevious)
+            GlyphButton(Icons.Rounded.SkipPrevious, "Previous", skipSize, onPrevious, enabled = np.canSkipPrevious)
             GlyphButton(if (np.isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, if (np.isPlaying) "Pause" else "Play", playSize, onPlayPause, modifier = playModifier)
-            GlyphButton(Icons.Rounded.FastForward, "Next", skipSize, onNext, enabled = np.canSkipNext)
+            GlyphButton(Icons.Rounded.SkipNext, "Next", skipSize, onNext, enabled = np.canSkipNext)
         }
     }
 }
@@ -351,13 +517,13 @@ private fun ExpressiveButton(
     val bounce = remember { Animatable(1f) }
     val shift = remember { Animatable(0f) }
 
-    val focusScale by animateFloatAsState(if (focused) 1.16f else 1f, spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMediumLow), label = "xFocus")
-    val pressScale by animateFloatAsState(if (pressed) 0.88f else 1f, spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessHigh), label = "xPress")
+    val focusScale by animateFloatAsState(if (focused) 1.08f else 1f, spring(dampingRatio = 0.62f, stiffness = Spring.StiffnessMediumLow), label = "xFocus")
+    val pressScale by animateFloatAsState(if (pressed) 0.92f else 1f, spring(dampingRatio = 0.58f, stiffness = Spring.StiffnessHigh), label = "xPress")
     val fill by animateFloatAsState(if (focused) 1f else 0f, tween(220), label = "xFill")
     val halo by animateFloatAsState(if (focused) 1f else 0f, tween(360), label = "xHalo")
     val tint = lerp(if (enabled) Scenic.TextPrimary else Scenic.TextPrimary.copy(alpha = 0.3f), Color(0xFF111111), fill)
 
-    Box(modifier.size(size * 1.3f), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(size * 1.3f), contentAlignment = Alignment.Center) {
         // Soft glow that blooms behind the focused button.
         Canvas(Modifier.size(size * 1.3f).graphicsLayer { alpha = halo }) {
             drawCircle(
@@ -365,7 +531,7 @@ private fun ExpressiveButton(
             )
         }
         Box(
-            Modifier
+            modifier
                 .size(size)
                 .graphicsLayer {
                     val s = focusScale * pressScale * bounce.value
@@ -374,7 +540,8 @@ private fun ExpressiveButton(
                 }
                 .shadow((16 * fill).dp, CircleShape, clip = false)
                 .clip(CircleShape)
-                .background(Color.White.copy(alpha = fill))
+                .background(if (focused) Color.White.copy(alpha = 0.92f) else Color(0xFF101316).copy(alpha = 0.2f))
+                .border(1.dp, Color.White.copy(alpha = if (focused) 0.95f else 0.24f), CircleShape)
                 .tvClickable(interaction) {
                     if (!enabled) return@tvClickable
                     onClick()

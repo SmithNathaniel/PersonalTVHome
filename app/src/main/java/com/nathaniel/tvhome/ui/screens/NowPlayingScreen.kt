@@ -8,12 +8,19 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import com.nathaniel.tvhome.ui.components.tvClickable
 import com.nathaniel.tvhome.ui.components.FocusSpring
 import androidx.tv.material3.Icon
@@ -24,10 +31,13 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.material.icons.rounded.Lyrics
 import com.nathaniel.tvhome.lyrics.LyricsState
+import com.nathaniel.tvhome.lyrics.Lyrics
 import com.nathaniel.tvhome.ui.home.LyricsPanel
 import kotlinx.coroutines.launch
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -35,6 +45,11 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
@@ -47,10 +62,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.OpenInNew
 import androidx.compose.material.icons.rounded.MusicNote
+import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -59,6 +76,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -81,10 +100,11 @@ import com.nathaniel.tvhome.ui.home.Artwork
 import com.nathaniel.tvhome.ui.home.PlayerShadow
 import com.nathaniel.tvhome.ui.home.Scrubber
 import com.nathaniel.tvhome.ui.home.SourceBadge
-import com.nathaniel.tvhome.ui.home.TrackTitle
 import com.nathaniel.tvhome.ui.home.TransportControls
 import com.nathaniel.tvhome.ui.home.rememberPosition
 import com.nathaniel.tvhome.ui.navigation.LocalNavigator
+import com.nathaniel.tvhome.ui.navigation.Navigator
+import com.nathaniel.tvhome.ui.navigation.Screen
 import com.nathaniel.tvhome.ui.theme.Scenic
 import kotlinx.coroutines.android.awaitFrame
 import kotlinx.coroutines.delay
@@ -98,7 +118,6 @@ fun NowPlayingScreen() {
     val apps by container.apps.apps.collectAsStateWithLifecycle()
     val active = state as? MediaState.Active
 
-    // When music stops entirely, glide back to the scenic home screen.
     val hadMusic = remember { booleanArrayOf(false) }
     if (active != null) hadMusic[0] = true
     LaunchedEffect(active == null) {
@@ -126,11 +145,11 @@ fun NowPlayingScreen() {
                             }
                             val focus = remember { FocusRequester() }
                             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                installed.forEachIndexed { i, src ->
+                                installed.forEachIndexed { index, source ->
                                     GlassButton(
-                                        src.name,
-                                        onClick = { actions.launch(src.packageName) },
-                                        modifier = if (i == 0) Modifier.focusRequester(focus) else Modifier,
+                                        source.name,
+                                        onClick = { actions.launch(source.packageName) },
+                                        modifier = if (index == 0) Modifier.focusRequester(focus) else Modifier,
                                     )
                                 }
                             }
@@ -145,7 +164,6 @@ fun NowPlayingScreen() {
     }
 }
 
-/** Gentle shading over the scenic wallpaper so the large text stays readable; the photo stays visible. */
 @Composable
 internal fun ReadabilityShade() {
     Canvas(Modifier.fillMaxSize().graphicsLayer()) {
@@ -161,179 +179,381 @@ internal fun NowPlayingContent(np: NowPlaying) {
     val lyricsState by container.lyrics.state.collectAsStateWithLifecycle()
     val playFocus = remember { FocusRequester() }
     val position = rememberPosition(np)
-    LaunchedEffect(Unit) { awaitFrame(); runCatching { playFocus.requestFocus() } }
-
     val readyLyrics = (lyricsState as? LyricsState.Ready)?.takeIf { it.trackKey == np.trackKey }?.lyrics
-    val lyricsVisible = prefs.showLyrics && readyLyrics != null
-    // Keep the last lyrics so they can animate out after being switched off.
-    var shownLyrics by remember(np.trackKey) { mutableStateOf(readyLyrics) }
-    if (readyLyrics != null) shownLyrics = readyLyrics
+    val noLyricsForTrack = (lyricsState as? LyricsState.Unavailable)?.trackKey == np.trackKey
+    LaunchedEffect(Unit) { awaitFrame(); runCatching { playFocus.requestFocus() } }
+    CenteredPlayer(
+        np = np,
+        position = position,
+        lyrics = readyLyrics.takeIf { prefs.showLyrics && !noLyricsForTrack },
+        lyricsEnabled = prefs.showLyrics && !noLyricsForTrack,
+        lyricsState = lyricsState,
+        playFocus = playFocus,
+        onToggleLyrics = { container.scope.launch { container.preferences.setShowLyrics(!prefs.showLyrics) } },
+        onOpenSource = { container.media.openSourceApp() },
+    )
+}
 
-    // One progress value drives the whole morph: 0 = artwork layout, 1 = lyrics layout.
-    val t by animateFloatAsState(if (lyricsVisible) 1f else 0f, tween(MORPH_MS, easing = Emphasized), label = "lyricsMorph")
-    val titleSize = lerp(34f, 24f, t)
-
-    BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 96.dp, vertical = 64.dp)) {
-        val w = maxWidth
-        val h = maxHeight
-        val normalLeft = ((w - (ART + GAP + INFO)) / 2).coerceAtLeast(0.dp)
-        val infoX = lerp(normalLeft + ART + GAP, 0.dp, t)
-        val lyricsX = INFO + GAP
-        var rootCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
-        var slotCoords by remember { mutableStateOf<LayoutCoordinates?>(null) }
-
-        Box(Modifier.fillMaxSize().onPlaced { rootCoords = it }) {
-            // Song details and controls: a fixed-width column that glides left, so text never reflows.
-            Column(
-                Modifier
-                    .align(Alignment.CenterStart)
-                    .offset { IntOffset(infoX.roundToPx(), 0) }
-                    .width(INFO),
+@Composable
+internal fun CenteredPlayer(
+    np: NowPlaying,
+    position: Long,
+    lyrics: Lyrics?,
+    lyricsEnabled: Boolean,
+    lyricsState: LyricsState,
+    playFocus: FocusRequester,
+    onToggleLyrics: () -> Unit,
+    onOpenSource: () -> Unit,
+) {
+    val media = LocalContainer.current.media
+    var partyMode by remember { mutableStateOf(false) }
+    val partyDim by animateFloatAsState(if (partyMode) 0.7f else 0f, tween(520, easing = FastOutSlowInEasing), label = "partyDim")
+    val partyBarsAlpha by animateFloatAsState(if (partyMode) 1f else 0f, tween(700, easing = FastOutSlowInEasing), label = "partyBarsAlpha")
+    val partyCoverScale by animateFloatAsState(if (partyMode) 1.045f else 1f, tween(420, easing = FastOutSlowInEasing), label = "partyCoverScale")
+    var activityTick by remember { mutableIntStateOf(0) }
+    var idle by remember { mutableStateOf(false) }
+    LaunchedEffect(partyMode, activityTick) {
+        idle = false
+        delay(5_000)
+        idle = true
+    }
+    val idleScale by animateFloatAsState(if (idle) 1.2075f else 1f, tween(600, easing = FastOutSlowInEasing), label = "idleScale")
+    val idleNow = idle
+    val idleShiftPlain by animateDpAsState(if (idleNow) 45.dp else 0.dp, tween(600, easing = FastOutSlowInEasing), label = "idleShiftPlain")
+    val idleShiftLyrics by animateDpAsState(if (idleNow) 45.dp else 0.dp, tween(600, easing = FastOutSlowInEasing), label = "idleShiftLyrics")
+    val lyricsIdleScale by animateFloatAsState(if (idleNow) 1.2f else 1f, tween(600, easing = FastOutSlowInEasing), label = "lyricsIdleScale")
+    val idleGap by animateDpAsState(if (idleNow) 6.dp else 0.dp, tween(600, easing = FastOutSlowInEasing), label = "idleGap")
+    val infoIdleFactor by animateFloatAsState(if (idleNow) 0.8f else 1f, tween(600, easing = FastOutSlowInEasing), label = "infoIdleFactor")
+    val controlsAlpha by animateFloatAsState(if (idleNow) 0f else 1f, tween(500, easing = FastOutSlowInEasing), label = "controlsAlpha")
+    BoxWithConstraints(
+        Modifier.fillMaxSize().onPreviewKeyEvent {
+            val wasIdle = idle
+            idle = false
+            activityTick++
+            wasIdle
+        },
+    ) {
+        Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = partyDim)))
+        BoxWithConstraints(Modifier.fillMaxSize().padding(horizontal = 72.dp, vertical = 24.dp)) {
+        val coverSize = if (lyrics == null) {
+            minOf(300.dp, maxHeight * 0.43f, maxWidth * 0.3f)
+        } else {
+            minOf(170.dp, maxHeight * 0.34f, maxWidth * 0.22f)
+        }
+        val reflectionHeight = coverSize * 0.22f
+        Box(Modifier.fillMaxSize()) {
+            Row(
+                Modifier.align(Alignment.TopStart).fillMaxWidth().height(38.dp),
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    SourceBadge(np, iconSize = 16.dp, textSize = 12.sp)
-                    Spacer(Modifier.weight(1f))
-                    LyricsStatus(prefs.showLyrics, lyricsState, np)
-                    Spacer(Modifier.width(10.dp))
-                    QuietIconButton(
-                        icon = Icons.Rounded.Lyrics,
-                        description = if (prefs.showLyrics) "Hide lyrics" else "Show lyrics",
-                        active = prefs.showLyrics,
-                        onClick = { container.scope.launch { container.preferences.setShowLyrics(!prefs.showLyrics) } },
-                    )
-                    Spacer(Modifier.width(6.dp))
-                    QuietIconButton(
-                        icon = Icons.AutoMirrored.Rounded.OpenInNew,
-                        description = "Open ${np.platform}",
-                        onClick = { container.media.openSourceApp() },
-                    )
-                }
-                Spacer(Modifier.height(14.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Landing spot for the artwork in lyrics mode; it opens up as the cover arrives.
-                    Spacer(
-                        Modifier
-                            .width((SMALL_ART + 16.dp) * t)
-                            .height(SMALL_ART * t)
-                            .onPlaced { slotCoords = it },
-                    )
-                    AnimatedContent(np.trackKey, transitionSpec = { fadeIn(tween(450)) togetherWith fadeOut(tween(200)) }, label = "npText") { _ ->
-                        Column {
-                            TrackTitle(
-                                np.title,
-                                Scenic.Title.copy(fontSize = titleSize.sp, lineHeight = (titleSize * 1.18f).sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.3).sp, shadow = PlayerShadow),
-                                focused = false,
-                                maxLines = 2,
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                np.artist,
-                                style = Scenic.Body.copy(fontSize = (titleSize * 0.62f).sp, color = Scenic.TextPrimary.copy(alpha = 0.6f), shadow = PlayerShadow),
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            if (!np.album.isNullOrBlank() && t < 0.99f) {
-                                Text(
-                                    np.album,
-                                    style = Scenic.Body.copy(fontSize = 16.sp, color = Scenic.TextPrimary.copy(alpha = 0.42f * (1f - t)), shadow = PlayerShadow),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(top = 2.dp * (1f - t)).height(22.dp * (1f - t)),
-                                )
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(32.dp))
-                Scrubber(np, position, Modifier.fillMaxWidth(), barHeight = 4.dp, labelSize = 12.sp)
-                Spacer(Modifier.height(18.dp))
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    TransportControls(
-                        np,
-                        container.media::playPause,
-                        container.media::skipNext,
-                        container.media::skipPrevious,
-                        playSize = 56.dp,
-                        skipSize = 46.dp,
-                        spacing = 14.dp,
-                        expressive = true,
-                        playModifier = Modifier.focusRequester(playFocus),
-                    )
-                }
+                SourceBadge(np, iconSize = 17.dp, textSize = 13.sp)
+                Spacer(Modifier.weight(1f))
+                LyricsStatus(lyricsEnabled, lyricsState, np)
+                Spacer(Modifier.width(10.dp))
+                QuietIconButton(
+                    icon = Icons.Rounded.Lyrics,
+                    description = if (lyricsEnabled) "Hide lyrics" else "Show lyrics",
+                    active = lyricsEnabled,
+                    onClick = onToggleLyrics,
+                )
+                Spacer(Modifier.width(6.dp))
+                QuietIconButton(
+                    icon = Icons.Rounded.GraphicEq,
+                    description = if (partyMode) "Turn off Party Mode" else "Turn on Party Mode",
+                    active = partyMode,
+                    onClick = { partyMode = !partyMode },
+                )
+                Spacer(Modifier.width(6.dp))
+                QuietIconButton(
+                    icon = Icons.AutoMirrored.Rounded.OpenInNew,
+                    description = "Open ${np.platform}",
+                    onClick = onOpenSource,
+                )
             }
 
-            // One artwork that shrinks and glides into its spot beside the title (scaled, not re-laid-out).
-            val artSize = lerp(ART, SMALL_ART, t)
-            val scale = artSize / ART
-            val radius = lerp(18.dp, 12.dp, t) / scale
-            Box(
-                Modifier
-                    .align(Alignment.TopStart)
-                    .offset {
-                        val normal = IntOffset(normalLeft.roundToPx(), ((h - ART) / 2).roundToPx())
-                        val root = rootCoords
-                        val slot = slotCoords
-                        val target = if (root != null && slot != null && root.isAttached && slot.isAttached) {
-                            val p = root.localPositionOf(slot, Offset.Zero)
-                            IntOffset(infoX.roundToPx(), p.y.roundToInt())
-                        } else normal
-                        IntOffset(lerpInt(normal.x, target.x, t), lerpInt(normal.y, target.y, t))
-                    }
-                    .size(ART)
-                    .graphicsLayer {
-                        scaleX = scale
-                        scaleY = scale
-                        transformOrigin = TransformOrigin(0f, 0f)
-                    },
-            ) {
-                AnimatedContent(
-                    np.trackKey,
-                    transitionSpec = { (fadeIn(tween(500)) + scaleIn(tween(500, easing = FastOutSlowInEasing), initialScale = 0.94f)) togetherWith fadeOut(tween(250)) },
-                    label = "npArt",
-                ) { _ ->
-                    val shape = RoundedCornerShape(radius)
-                    Artwork(np, ART, shape, Modifier.shadow(lerp(48.dp, 60.dp, t), shape, ambientColor = Color.Black, spotColor = Color.Black))
-                }
-            }
-
-            // Lyrics drift in from the right as the cover leaves, and drift back out when switched off.
-            val lyrics = shownLyrics
-            if (lyrics != null && t > 0.01f) {
-                val appear = ((t - 0.3f) / 0.7f).coerceIn(0f, 1f)
-                Box(
-                    Modifier
-                        .align(Alignment.CenterStart)
-                        .offset { IntOffset((lyricsX + 48.dp * (1f - appear)).roundToPx(), 0) }
-                        .width((w - lyricsX).coerceAtLeast(0.dp))
-                        .height(LYRICS_HEIGHT)
-                        .graphicsLayer { alpha = appear },
+            if (lyrics == null) {
+                Column(
+                    Modifier.fillMaxSize().offset(y = 23.dp + idleShiftPlain).graphicsLayer { scaleX = 0.926f; scaleY = 0.926f },
+                    verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    LyricsPanel(np, lyrics, Modifier.fillMaxSize())
+                    PlayerArtwork(np, coverSize * 0.92f, partyCoverScale, artOffset = (-7).dp)
+                    PlayerTrackInfo(np, compact = false)
+                    Scrubber(
+                        np,
+                        position,
+                        Modifier.fillMaxWidth(0.476f).graphicsLayer { alpha = controlsAlpha },
+                        barHeight = 4.dp,
+                        labelSize = 12.sp,
+                        onSeek = media::seekTo,
+                        labelTrackSpacing = 2.dp,
+                    )
+                    Row(
+                        Modifier.offset(y = (-15).dp).padding(horizontal = 14.dp).graphicsLayer { alpha = controlsAlpha },
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TransportControls(
+                            np,
+                            onPlayPause = media::playPause,
+                            onNext = media::skipNext,
+                            onPrevious = media::skipPrevious,
+                            playSize = 54.dp,
+                            skipSize = 44.dp,
+                            spacing = 10.dp,
+                            expressive = true,
+                            playModifier = Modifier.focusRequester(playFocus),
+                        )
+                    }
                 }
+            } else {
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .offset(y = 32.dp + idleShiftLyrics)
+                        .graphicsLayer { scaleX = 0.95f; scaleY = 0.95f },
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    PlayerArtwork(np, coverSize * 0.72f * idleScale, partyCoverScale, artOffset = (-7).dp)
+                    Spacer(Modifier.height(10.dp + idleGap))
+                    PlayerTrackInfo(np, compact = true, scale = idleScale * infoIdleFactor)
+                    Spacer(Modifier.height(10.dp + idleGap))
+                    Box(Modifier.fillMaxWidth(0.9f).height(109.dp).graphicsLayer { scaleX = lyricsIdleScale; scaleY = lyricsIdleScale }) {
+                        LyricsPanel(np, lyrics, Modifier.fillMaxSize(), compact = true)
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Scrubber(
+                        np,
+                        position,
+                        Modifier.fillMaxWidth(0.476f).graphicsLayer { alpha = controlsAlpha },
+                        barHeight = 4.dp,
+                        labelSize = 12.sp,
+                        onSeek = media::seekTo,
+                        labelsBesideTrack = false,
+                        labelTrackSpacing = 1.dp,
+                    )
+                    Spacer(Modifier.height(28.dp))
+                    Row(
+                        Modifier.offset(y = (-32).dp).padding(horizontal = 14.dp, vertical = 8.dp).graphicsLayer { alpha = controlsAlpha },
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TransportControls(
+                            np,
+                            onPlayPause = media::playPause,
+                            onNext = media::skipNext,
+                            onPrevious = media::skipPrevious,
+                            playSize = 54.dp,
+                            skipSize = 44.dp,
+                            spacing = 10.dp,
+                            expressive = true,
+                            playModifier = Modifier.focusRequester(playFocus),
+                        )
+                    }
+                }
+            }
+
+            if (!partyMode) {
+                BottomAudioVisualizer(
+                    np.isPlaying,
+                    np.artwork,
+                    Modifier.align(Alignment.BottomCenter).offset(y = 24.dp).fillMaxWidth(0.9f).height(18.dp),
+                )
+            }
+        }
+        }
+        EdgeAudioVisualizer(
+            np.isPlaying,
+            np.artwork,
+            Modifier.fillMaxSize().graphicsLayer { alpha = partyBarsAlpha },
+        )
+    }
+}
+
+@Composable
+private fun PlayerArtwork(
+    np: NowPlaying,
+    coverSize: androidx.compose.ui.unit.Dp,
+    partyCoverScale: Float,
+    artOffset: androidx.compose.ui.unit.Dp = 2.dp,
+) {
+    Box(Modifier.size(coverSize).offset(y = artOffset)) {
+        Box(
+            Modifier
+                .align(Alignment.TopCenter)
+                .size(coverSize)
+                .graphicsLayer { scaleX = partyCoverScale; scaleY = partyCoverScale }
+                .shadow(30.dp, RoundedCornerShape(16.dp), ambientColor = Color.Black, spotColor = Color.Black)
+                .clip(RoundedCornerShape(16.dp)),
+        ) {
+            AnimatedContent(
+                targetState = np,
+                contentKey = { it.trackKey },
+                transitionSpec = {
+                    (fadeIn(tween(440)) + scaleIn(tween(520, easing = FastOutSlowInEasing), initialScale = 0.92f) +
+                        slideInHorizontally(tween(500, easing = FastOutSlowInEasing)) { it / 12 }) togetherWith
+                        (fadeOut(tween(260)) + scaleOut(tween(360), targetScale = 1.03f) + slideOutHorizontally(tween(360)) { -it / 14 })
+                },
+                label = "centeredAlbumArt",
+            ) { track ->
+                Artwork(track, coverSize, RoundedCornerShape(16.dp), Modifier.fillMaxSize())
             }
         }
     }
 }
 
+@Composable
+private fun PlayerTrackInfo(np: NowPlaying, compact: Boolean, scale: Float = 1f) {
+    AnimatedContent(
+        targetState = np,
+        contentKey = { it.trackKey },
+        transitionSpec = {
+            (fadeIn(tween(360)) + slideInVertically(tween(420, easing = FastOutSlowInEasing)) { it / 8 }) togetherWith
+                (fadeOut(tween(220)) + slideOutVertically(tween(300)) { -it / 10 })
+        },
+        label = "centeredTrackInfo",
+        modifier = Modifier.fillMaxWidth(0.92f).widthIn(max = 760.dp).padding(horizontal = 16.dp),
+    ) { track ->
+        Column(
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text(
+                track.title,
+                style = Scenic.Title.copy(fontSize = (if (compact) 20.sp else 22.sp) * scale, fontWeight = FontWeight.SemiBold, color = Color.White, shadow = PlayerShadow),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                track.artist,
+                style = Scenic.Body.copy(fontSize = (if (compact) 14.sp else 16.sp) * scale, color = Color.White.copy(alpha = 0.9f), shadow = PlayerShadow),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun BottomAudioVisualizer(isPlaying: Boolean, artwork: androidx.compose.ui.graphics.ImageBitmap?, modifier: Modifier = Modifier) {
+    val palette = remember(artwork) { sampleArtworkPalette(artwork) }
+    val transition = rememberInfiniteTransition(label = "bottomVisualizer")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 6.283f,
+        animationSpec = infiniteRepeatable(tween(2_400, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+        label = "bottomVisualizerPhase",
+    )
+    Canvas(modifier) {
+        val count = 56
+        val gap = 3.dp.toPx()
+        val barWidth = ((size.width - gap * (count - 1)) / count).coerceAtLeast(1.dp.toPx())
+        val center = (count - 1) / 2f
+        repeat(count) { index ->
+            val envelope = 0.18f + 0.82f * (1f - kotlin.math.abs(index - center) / (center + 1f))
+            val wave = (kotlin.math.sin(phase - index * 0.2f) + 1f) / 2f
+            val pulse = if (isPlaying) 0.12f + 0.88f * wave else 0.08f
+            val height = size.height * envelope * pulse
+            drawRoundRect(
+                color = palette[index % palette.size].copy(alpha = 0.3f + 0.68f * pulse),
+                topLeft = Offset(index * (barWidth + gap), size.height - height),
+                size = androidx.compose.ui.geometry.Size(barWidth, height),
+                cornerRadius = CornerRadius(barWidth / 2f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun EdgeAudioVisualizer(
+    isPlaying: Boolean,
+    artwork: androidx.compose.ui.graphics.ImageBitmap?,
+    modifier: Modifier = Modifier,
+) {
+    val palette = remember(artwork) { sampleArtworkPalette(artwork) }
+    val transition = rememberInfiniteTransition(label = "partyEdgeVisualizer")
+    val phase by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = 6.283f,
+        animationSpec = infiniteRepeatable(tween(3_800, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+        label = "partyEdgePhase",
+    )
+    val playbackLevel by animateFloatAsState(
+        targetValue = if (isPlaying) 1f else 0.12f,
+        animationSpec = tween(800, easing = FastOutSlowInEasing),
+        label = "partyPlaybackLevel",
+    )
+    Canvas(modifier) {
+        val horizontalCount = 72
+        val verticalCount = 36
+        val barThickness = 4.dp.toPx()
+        val maxLength = 38.dp.toPx()
+
+        fun lengthFor(index: Int, count: Int, sidePhase: Float): Pair<Float, Float> {
+            val spatialPhase = index.toFloat() / count * 6.283f
+            val wave = (kotlin.math.sin(phase + spatialPhase + sidePhase) + 1f) / 2f
+            val smoothed = wave * wave * (3f - 2f * wave)
+            val strength = playbackLevel * (0.12f + smoothed * 0.88f)
+            val edgeEnvelope = 0.36f + 0.64f * (1f - kotlin.math.abs(index - count / 2f) / (count / 2f))
+            return partyVisualizerBarLength(barThickness, maxLength, strength, edgeEnvelope) to strength
+        }
+
+        repeat(horizontalCount) { index ->
+            val x = index * size.width / horizontalCount
+            val (length, strength) = lengthFor(index, horizontalCount, 0f)
+            val color = palette[index * palette.size / horizontalCount]
+            drawRoundRect(color.copy(alpha = 0.18f + 0.56f * strength), Offset(x, 0f), androidx.compose.ui.geometry.Size(size.width / horizontalCount * 0.58f, length), CornerRadius(barThickness / 2f))
+            drawRoundRect(color.copy(alpha = 0.18f + 0.56f * strength), Offset(x, size.height - length), androidx.compose.ui.geometry.Size(size.width / horizontalCount * 0.58f, length), CornerRadius(barThickness / 2f))
+        }
+        repeat(verticalCount) { index ->
+            val y = index * size.height / verticalCount
+            val (length, strength) = lengthFor(index, verticalCount, 1.1f)
+            val color = palette[index * palette.size / verticalCount]
+            drawRoundRect(color.copy(alpha = 0.18f + 0.56f * strength), Offset(0f, y), androidx.compose.ui.geometry.Size(length, size.height / verticalCount * 0.5f), CornerRadius(barThickness / 2f))
+            drawRoundRect(color.copy(alpha = 0.18f + 0.56f * strength), Offset(size.width - length, y), androidx.compose.ui.geometry.Size(length, size.height / verticalCount * 0.5f), CornerRadius(barThickness / 2f))
+        }
+    }
+}
+
+internal fun partyVisualizerBarLength(barThickness: Float, maxLength: Float, strength: Float, edgeEnvelope: Float): Float =
+    (barThickness + maxLength * strength * edgeEnvelope) * 0.9f
+
+private fun sampleArtworkPalette(artwork: androidx.compose.ui.graphics.ImageBitmap?): List<Color> {
+    if (artwork == null || artwork.width == 0 || artwork.height == 0) return listOf(Color(0xFFB7D9F5), Color(0xFFF2C68A), Color(0xFFC6A7E8))
+    val pixels = artwork.toPixelMap()
+    return List(12) { index ->
+        val x = ((index + 0.5f) * pixels.width / 12).toInt().coerceIn(0, pixels.width - 1)
+        val samples = listOf(pixels.height / 3, pixels.height / 2, pixels.height * 2 / 3)
+            .map { y -> pixels[x, y.coerceIn(0, pixels.height - 1)] }
+        val color = Color(
+            red = samples.sumOf { it.red.toDouble() }.toFloat() / samples.size,
+            green = samples.sumOf { it.green.toDouble() }.toFloat() / samples.size,
+            blue = samples.sumOf { it.blue.toDouble() }.toFloat() / samples.size,
+        )
+        Color(
+            red = (color.red * 0.76f + 0.24f).coerceIn(0f, 1f),
+            green = (color.green * 0.76f + 0.24f).coerceIn(0f, 1f),
+            blue = (color.blue * 0.76f + 0.24f).coerceIn(0f, 1f),
+        )
+    }
+}
+
 private fun lerpInt(a: Int, b: Int, t: Float) = (a + (b - a) * t).roundToInt()
 
-/** Apple's "emphasized" curve: quick start, long graceful settle. */
-private val Emphasized = CubicBezierEasing(0.2f, 0f, 0f, 1f)
-private const val MORPH_MS = 700
 private val ART = 300.dp
 private val SMALL_ART = 72.dp
 private val GAP = 56.dp
 private val INFO = 340.dp
 
-/** Minimal tvOS-style icon button: just a glyph, a white disc when focused, a soft fill when switched on. */
 @Composable
 private fun QuietIconButton(icon: ImageVector, description: String, onClick: () -> Unit, active: Boolean = false) {
     val interaction = remember { MutableInteractionSource() }
     val focused by interaction.collectIsFocusedAsState()
-    val scale by animateFloatAsState(if (focused) 1.12f else 1f, FocusSpring, label = "quietScale")
+    val scale by animateFloatAsState(if (focused) 1.06f else 1f, FocusSpring, label = "quietScale")
     val bg by animateColorAsState(
         when {
-            focused -> Color.White
+            focused -> Color.White.copy(alpha = 0.9f)
             active -> Color.White.copy(alpha = 0.18f)
             else -> Color.Transparent
         },
@@ -342,13 +562,13 @@ private fun QuietIconButton(icon: ImageVector, description: String, onClick: () 
     )
     val tint = when {
         focused -> Color(0xFF111111)
-        active -> Color.White
         else -> Color.White.copy(alpha = 0.6f)
     }
     Box(
         Modifier
             .size(SMALL_BUTTON)
             .graphicsLayer { scaleX = scale; scaleY = scale }
+            .shadow(if (focused) 5.dp else 0.dp, CircleShape, clip = false)
             .clip(CircleShape)
             .background(bg)
             .tvClickable(interaction, onClick = onClick),

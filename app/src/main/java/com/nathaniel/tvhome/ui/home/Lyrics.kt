@@ -23,8 +23,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.tv.material3.Icon
@@ -71,57 +71,34 @@ private fun indexAt(lines: List<LyricLine>, positionMs: Long): Int {
 
 private const val LEAD_MS = 250L
 
-/** The current line, rising into place as each new line begins. For the compact widget. */
-@Composable
-fun WidgetLyricLine(np: NowPlaying, lyrics: Lyrics.Synced, fontSize: TextUnit, modifier: Modifier = Modifier) {
-    val index = rememberLyricIndex(np, lyrics.lines)
-    val text = lyrics.lines.getOrNull(index)?.text?.ifBlank { "♪" } ?: "♪"
-    AnimatedContent(
-        targetState = text,
-        transitionSpec = {
-            (fadeIn(tween(320)) + slideInVertically(tween(380, easing = FastOutSlowInEasing)) { it / 2 }) togetherWith
-                (fadeOut(tween(200)) + slideOutVertically(tween(300)) { -it / 2 })
-        },
-        label = "widgetLyric",
-        modifier = modifier,
-    ) { line ->
-        Text(
-            line,
-            style = Scenic.Label.copy(fontSize = fontSize, lineHeight = fontSize * 1.25f, fontWeight = FontWeight.SemiBold, color = Scenic.TextPrimary, shadow = PlayerShadow),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
 /**
  * Apple Music–style lyrics, three lines at a time: the line just sung (dim), the line being sung
  * (bright) and the next line (dim). Each new line slides the trio up.
  */
 @Composable
-fun LyricsPanel(np: NowPlaying, lyrics: Lyrics, modifier: Modifier = Modifier) {
+fun LyricsPanel(np: NowPlaying, lyrics: Lyrics, modifier: Modifier = Modifier, compact: Boolean = false) {
     when (lyrics) {
         is Lyrics.Synced -> {
             val index = rememberLyricIndex(np, lyrics.lines)
-            ThreeLines(index, lyrics.lines.size, { lyrics.lines[it].text }, modifier)
+            ThreeLines(index, lyrics.lines.size, { lyrics.lines[it].text }, modifier, compact)
         }
         is Lyrics.Plain -> {
             // No timing: estimate the line from how far through the song we are.
             val lines = lyrics.lines.filter { it.isNotBlank() }
             val position = rememberPosition(np)
             val index = if (np.durationMs > 0 && lines.isNotEmpty()) ((position.toFloat() / np.durationMs) * lines.size).toInt().coerceIn(0, lines.lastIndex) else 0
-            ThreeLines(index, lines.size, { lines[it] }, modifier)
+            ThreeLines(index, lines.size, { lines[it] }, modifier, compact)
         }
-        Lyrics.Instrumental -> Box(modifier, contentAlignment = Alignment.CenterStart) {
+        Lyrics.Instrumental -> Box(modifier, contentAlignment = Alignment.Center) {
             Icon(Icons.Rounded.MusicNote, contentDescription = "Instrumental", tint = Scenic.TextPrimary.copy(alpha = 0.6f), modifier = Modifier.padding(8.dp))
         }
     }
 }
 
 @Composable
-private fun ThreeLines(index: Int, count: Int, line: (Int) -> String, modifier: Modifier) {
+private fun ThreeLines(index: Int, count: Int, line: (Int) -> String, modifier: Modifier, compact: Boolean) {
     fun textAt(i: Int): String? = if (i in 0 until count) line(i).ifBlank { "♪" } else null
-    Box(modifier, contentAlignment = Alignment.CenterStart) {
+    Box(modifier, contentAlignment = Alignment.Center) {
         AnimatedContent(
             targetState = index,
             transitionSpec = {
@@ -131,11 +108,11 @@ private fun ThreeLines(index: Int, count: Int, line: (Int) -> String, modifier: 
             },
             label = "lyricTrio",
         ) { i ->
-            Column(Modifier.fillMaxWidth()) {
-                LyricRow(textAt(i - 1), LineRole.Previous)
+            Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                LyricRow(textAt(i - 1), LineRole.Previous, compact)
                 // Before the first line, show a quiet note in the "current" slot.
-                LyricRow(textAt(i) ?: if (i < 0) "♪" else null, LineRole.Current)
-                LyricRow(textAt(i + 1), LineRole.Next)
+                LyricRow(textAt(i) ?: if (i < 0) "♪" else null, LineRole.Current, compact)
+                LyricRow(textAt(i + 1), LineRole.Next, compact)
             }
         }
     }
@@ -144,27 +121,28 @@ private fun ThreeLines(index: Int, count: Int, line: (Int) -> String, modifier: 
 private enum class LineRole { Previous, Current, Next }
 
 @Composable
-private fun LyricRow(text: String?, role: LineRole) {
+private fun LyricRow(text: String?, role: LineRole, compact: Boolean) {
     val color = when (role) {
         LineRole.Current -> Color.White
-        LineRole.Previous -> Color.White.copy(alpha = 0.3f)
-        LineRole.Next -> Color.White.copy(alpha = 0.42f)
+        LineRole.Previous -> Color.White.copy(alpha = 0.26f)
+        LineRole.Next -> Color.White.copy(alpha = 0.34f)
     }
     val scale = if (role == LineRole.Current) 1f else 0.9f
     Text(
         text ?: "",
-        style = Scenic.Title.copy(fontSize = 26.sp, lineHeight = 33.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp, color = color, shadow = PlayerShadow),
+        style = Scenic.Title.copy(fontSize = if (compact) 24.77.sp else 30.6.sp, lineHeight = if (compact) 29.83.sp else 38.3.sp, fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp, color = color, shadow = if (role == LineRole.Current) PlayerShadow else null),
         maxLines = 2,
         overflow = TextOverflow.Ellipsis,
         // Keep a steady rhythm even when a slot is empty (start or end of the song).
         minLines = 1,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
+            .padding(vertical = if (compact) 2.dp else 8.dp)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
-                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0f, 0.5f)
+                transformOrigin = androidx.compose.ui.graphics.TransformOrigin(0.5f, 0.5f)
             },
+        textAlign = TextAlign.Center,
     )
 }

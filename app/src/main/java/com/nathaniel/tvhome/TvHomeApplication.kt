@@ -20,6 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import com.nathaniel.tvhome.wallpaper.WallpaperCatalog
 
@@ -62,11 +63,13 @@ class AppContainer(context: Context) {
      */
     @OptIn(ExperimentalCoroutinesApi::class)
     private fun rotateWallpapers() = scope.launch {
-        preferences.preferences
-            .map { it.rotateWallpapers to it.wallpaperId }
+        combine(
+            preferences.preferences.map { it.rotateWallpapers to it.wallpaperId }.distinctUntilChanged(),
+            scenes.christmasSeason,
+        ) { (enabled, wallpaperId), christmas -> Triple(enabled, wallpaperId, christmas) }
             .distinctUntilChanged()
-            .collectLatest { (enabled, currentId) ->
-                if (!enabled) return@collectLatest
+            .collectLatest { (enabled, currentId, christmas) ->
+                if (!enabled || christmas) return@collectLatest
                 val all = WallpaperCatalog.all
                 val index = all.indexOfFirst { it.id == currentId }.coerceAtLeast(0)
                 val next = all[(index + 1) % all.size]

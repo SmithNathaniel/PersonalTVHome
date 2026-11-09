@@ -2,4 +2,6 @@
 <resources>
     <string name="app_name">Personal TV Home</string>
     <string name="media_listener_label">Personal TV Home – Now Playing</string>
+    <string name="volume_accessibility_service_label">Personal TV Home Volume Control</string>
+    <string name="volume_accessibility_service_description">Filters volume up and down keys to adjust music volume and show the custom volume control. Does not read screen content.</string>
 </resources>

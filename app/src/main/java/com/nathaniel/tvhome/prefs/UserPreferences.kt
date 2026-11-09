@@ -22,7 +22,7 @@ enum class GlassOpacity(val label: String, val tintAlpha: Float) {
 enum class BlurLevel(val label: String, val radius: Int) { Soft("Soft", 4), Medium("Medium", 7), Strong("Strong", 11) }
 
 enum class DockSize(val label: String, val iconDp: Int, val gapDp: Int) {
-    Compact("Compact", 45, 15), Standard("Standard", 52, 17), Large("Large", 61, 20)
+    Compact("Compact", 44, 23), Standard("Standard", 52, 17), Large("Large", 61, 20)
 }
 
 data class UserPreferences(

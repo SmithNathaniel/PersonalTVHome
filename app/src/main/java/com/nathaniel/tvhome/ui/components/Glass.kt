@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.addOutline
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.clipPath
@@ -104,9 +105,10 @@ private fun DrawScope.drawScene(scene: Scene, alpha: Float) {
 
 /**
  * Draws the blurred scene that lies behind this element, aligned to its on-screen position,
- * giving genuine backdrop blur on Android TV versions without RenderEffect.
+ * giving genuine backdrop blur on Android TV versions without RenderEffect. [strong] picks the
+ * more heavily blurred variant for surfaces specified with a larger blur radius (e.g. the dock).
  */
-fun Modifier.glassBackdrop(shape: Shape): Modifier = composed {
+fun Modifier.glassBackdrop(shape: Shape, strong: Boolean = false): Modifier = composed {
     val backdrop = LocalBackdrop.current
     val origin = remember { mutableStateOf(Offset.Zero) }
     val root = remember { mutableStateOf(IntSize.Zero) }
@@ -121,8 +123,8 @@ fun Modifier.glassBackdrop(shape: Shape): Modifier = composed {
                 val rootSize = root.value
                 if (rootSize.width == 0) return@onDrawBehind
                 clipPath(path) {
-                    backdrop.previous?.let { drawBackdropSlice(it.glass, origin.value, rootSize, 1f) }
-                    backdrop.current?.let { drawBackdropSlice(it.glass, origin.value, rootSize, backdrop.progress.value) }
+                    backdrop.previous?.let { drawBackdropSlice(if (strong) it.glassStrong else it.glass, origin.value, rootSize, 1f) }
+                    backdrop.current?.let { drawBackdropSlice(if (strong) it.glassStrong else it.glass, origin.value, rootSize, backdrop.progress.value) }
                 }
             }
         }
@@ -157,20 +159,24 @@ fun GlassSurface(
     modifier: Modifier = Modifier,
     elevation: Dp = 18.dp,
     tintBoost: Float = 0f,
+    /** Literal background colour (with its own alpha), overriding the user's Appearance tint when set. */
+    background: Color? = null,
+    /** Flat white border at this alpha, overriding the default illuminated gradient edge when set. */
+    borderAlpha: Float? = null,
+    /** Use the more heavily blurred wallpaper variant, for surfaces specified with a larger blur radius. */
+    strongBlur: Boolean = false,
+    shadowAlpha: Float = 0.45f,
     content: @Composable BoxScope.() -> Unit,
 ) {
     val style = LocalGlassStyle.current
     Box(
         modifier
             .graphicsLayer()
-            .shadow(elevation, shape, clip = false, ambientColor = Color.Black.copy(alpha = 0.45f), spotColor = Color.Black.copy(alpha = 0.55f))
-            .glassBackdrop(shape)
-            .background(style.tint.copy(alpha = (style.tintAlpha + tintBoost).coerceIn(0.04f, 0.9f)), shape)
-            .background(
-                Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.07f), Color.Transparent)),
-                shape,
-            )
-            .border(1.dp, glassEdge(), shape),
+            .shadow(elevation, shape, clip = false, ambientColor = Color.Black.copy(alpha = shadowAlpha), spotColor = Color.Black.copy(alpha = shadowAlpha))
+            .glassBackdrop(shape, strong = strongBlur)
+            .background(background ?: style.tint.copy(alpha = (style.tintAlpha + tintBoost).coerceIn(0.04f, 0.9f)), shape)
+            .then(if (background == null) Modifier.background(Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.07f), Color.Transparent)), shape) else Modifier)
+            .border(1.dp, if (borderAlpha != null) SolidColor(Color.White.copy(alpha = borderAlpha)) else glassEdge(), shape),
         content = content,
     )
 }

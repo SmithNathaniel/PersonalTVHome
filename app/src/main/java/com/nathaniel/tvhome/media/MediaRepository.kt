@@ -52,9 +52,21 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
     private var art: Art? = null
     private var artJob: Job? = null
     private var artLoadingFor: String? = null
+    private var artRetryRunnable: Runnable? = null
+    private var artRetryTrackKey: String? = null
+    private var artRetryCount = 0
 
     /** Short gaps between tracks shouldn't make the widget disappear and reappear. */
     private val goIdle = Runnable { _state.value = MediaState.Idle }
+
+    /**
+     * Some apps (gapless/crossfade playback) publish the next track's metadata a moment before
+     * it's actually audible. Holding a track-identity change for a beat before adopting it stops
+     * the widget from flashing the upcoming track's art while the current one is still playing.
+     */
+    private var pendingTrackKey: String? = null
+    private var trackSwitchRunnable: Runnable? = null
+    private var confirmedTrackKey: String? = null
 
     private val sessionsListener = MediaSessionManager.OnActiveSessionsChangedListener { list ->
         updateControllers(list.orEmpty())
@@ -89,6 +101,14 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
         val c = activeController ?: return
         val playing = c.playbackState?.state?.let(::isPlayingState) == true
         if (playing) c.transportControls.pause() else c.transportControls.play()
+    }
+
+    fun seekTo(positionMs: Long) {
+        val controller = activeController ?: return
+        val playback = controller.playbackState ?: return
+        if (playback.actions and PlaybackState.ACTION_SEEK_TO != 0L) {
+            controller.transportControls.seekTo(positionMs.coerceAtLeast(0L))
+        }
     }
 
     fun skipNext() { activeController?.transportControls?.skipToNext() }
@@ -132,6 +152,7 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
             ?: withMetadata.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PAUSED }
         activeController = chosen
         if (chosen == null) {
+            cancelPendingTrackSwitch()
             if (_state.value is MediaState.Active) {
                 mainHandler.removeCallbacks(goIdle)
                 mainHandler.postDelayed(goIdle, IDLE_GRACE_MS)
@@ -142,18 +163,45 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
         }
         mainHandler.removeCallbacks(goIdle)
         val metadata = chosen.metadata!!
-        val playback = chosen.playbackState
-        val actions = playback?.actions ?: 0L
         val title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty()
         val artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
             ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
             ?: ""
         val trackKey = "${chosen.packageName}|$title|$artist"
-        if (art?.trackKey != trackKey) art = Art(trackKey, null)
-        val currentArt = art?.artwork
-        if (currentArt == null && artLoadingFor != trackKey) loadArtwork(trackKey, metadata)
+        val displayedKey = (_state.value as? MediaState.Active)?.nowPlaying?.trackKey
 
+        if (displayedKey != null && trackKey != displayedKey && trackKey != confirmedTrackKey) {
+            // Don't adopt a different track's identity (and its art) until it holds for a beat.
+            if (pendingTrackKey != trackKey) {
+                cancelPendingTrackSwitch()
+                pendingTrackKey = trackKey
+                trackSwitchRunnable = Runnable {
+                    trackSwitchRunnable = null
+                    pendingTrackKey = null
+                    confirmedTrackKey = trackKey
+                    recompute()
+                }.also { mainHandler.postDelayed(it, TRACK_CHANGE_DEBOUNCE_MS) }
+            }
+            return
+        }
+        confirmedTrackKey = null
+        cancelPendingTrackSwitch()
+
+        if (art?.trackKey != trackKey) {
+            artJob?.cancel()
+            artJob = null
+            artLoadingFor = null
+            cancelArtworkRetry()
+            art = Art(trackKey, null)
+        }
+        val currentArt = art?.artwork
+        if (currentArt == null && artLoadingFor != trackKey && artRetryRunnable == null && artRetryCount < MAX_ART_RETRIES) {
+            loadArtwork(trackKey, metadata)
+        }
+
+        val playback = chosen.playbackState
+        val actions = playback?.actions ?: 0L
         val next = NowPlaying(
                 packageName = chosen.packageName,
                 platform = MusicSources.nameOf(chosen.packageName) ?: chosen.packageName,
@@ -175,6 +223,12 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
         _state.value = MediaState.Active(next)
     }
 
+    private fun cancelPendingTrackSwitch() {
+        trackSwitchRunnable?.let(mainHandler::removeCallbacks)
+        trackSwitchRunnable = null
+        pendingTrackKey = null
+    }
+
     /**
      * Some apps (e.g. SoundCloud) re-report playback every second. If only the position moved,
      * and it matches where we already extrapolated it to be, keep the existing state untouched.
@@ -190,22 +244,27 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
             ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_ART)
             ?: metadata.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
 
-    private fun artUri(metadata: MediaMetadata): String? = listOf(
+    private fun artUris(metadata: MediaMetadata): List<String> = listOf(
         MediaMetadata.METADATA_KEY_ALBUM_ART_URI,
         MediaMetadata.METADATA_KEY_ART_URI,
         MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI,
-    ).firstNotNullOfOrNull { metadata.getString(it)?.takeIf(String::isNotBlank) }
+    ).mapNotNull { metadata.getString(it)?.takeIf(String::isNotBlank) }.distinct()
 
     private fun loadArtwork(trackKey: String, metadata: MediaMetadata) {
         val bitmap = artBitmap(metadata)
-        val uri = artUri(metadata)
-        if (bitmap == null && uri == null) return
+        val uris = artUris(metadata)
+        if (bitmap == null && uris.isEmpty()) {
+            scheduleArtworkRetry(trackKey)
+            return
+        }
+        artRetryRunnable?.let(mainHandler::removeCallbacks)
+        artRetryRunnable = null
         artJob?.cancel()
         artLoadingFor = trackKey
         artJob = scope.launch {
             val artwork = withContext(Dispatchers.Default) {
                 runCatching {
-                    val source = bitmap ?: withContext(Dispatchers.IO) { loadUri(uri!!) } ?: return@runCatching null
+                    val source = bitmap ?: loadFirstUri(uris) ?: return@runCatching null
                     val longest = max(source.width, source.height)
                     val scaled = if (longest > 640) {
                         val s = 640f / longest
@@ -215,11 +274,57 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
                 }.onFailure { Log.w(TAG, "Artwork processing failed", it) }.getOrNull()
             }
             if (artLoadingFor == trackKey) artLoadingFor = null
-            if (artwork != null && art?.trackKey == trackKey) {
-                art = Art(trackKey, artwork)
-                recompute()
+            if (art?.trackKey == trackKey && art?.artwork == null) {
+                if (artwork != null) {
+                    art = Art(trackKey, artwork)
+                    cancelArtworkRetry()
+                    recompute()
+                } else {
+                    scheduleArtworkRetry(trackKey)
+                }
             }
         }
+    }
+
+    private suspend fun loadFirstUri(uris: List<String>): Bitmap? {
+        for (uri in uris) {
+            val bitmap = withContext(Dispatchers.IO) {
+                runCatching { loadUri(uri) }
+                    .onFailure { Log.w(TAG, "Artwork URI failed", it) }
+                    .getOrNull()
+            }
+            if (bitmap != null) return bitmap
+        }
+        return null
+    }
+
+    private fun scheduleArtworkRetry(trackKey: String) {
+        if (art?.trackKey != trackKey || art?.artwork != null || artRetryRunnable != null) return
+        if (artRetryTrackKey != trackKey) {
+            cancelArtworkRetry()
+            artRetryTrackKey = trackKey
+        }
+        if (artRetryCount >= MAX_ART_RETRIES) return
+        artRetryCount++
+        artRetryRunnable = Runnable {
+            artRetryRunnable = null
+            if (art?.trackKey != trackKey || art?.artwork != null) return@Runnable
+            val controller = activeController ?: return@Runnable
+            val metadata = controller.metadata ?: return@Runnable
+            val title = metadata.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty()
+            val artist = metadata.getString(MediaMetadata.METADATA_KEY_ARTIST)
+                ?: metadata.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST)
+                ?: metadata.getString(MediaMetadata.METADATA_KEY_DISPLAY_SUBTITLE)
+                ?: ""
+            if ("${controller.packageName}|$title|$artist" == trackKey) loadArtwork(trackKey, metadata)
+        }.also { mainHandler.postDelayed(it, ART_RETRY_DELAY_MS) }
+    }
+
+    private fun cancelArtworkRetry() {
+        artRetryRunnable?.let(mainHandler::removeCallbacks)
+        artRetryRunnable = null
+        artRetryTrackKey = null
+        artRetryCount = 0
     }
 
     /**
@@ -278,6 +383,11 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
 
     private fun unregisterAll() {
         mainHandler.removeCallbacks(goIdle)
+        cancelPendingTrackSwitch()
+        cancelArtworkRetry()
+        artJob?.cancel()
+        artJob = null
+        artLoadingFor = null
         if (sessionsListenerRegistered) {
             runCatching { sessionManager.removeOnActiveSessionsChangedListener(sessionsListener) }
             sessionsListenerRegistered = false
@@ -299,6 +409,9 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
     private companion object {
         const val TAG = "MediaRepository"
         const val IDLE_GRACE_MS = 3_000L
+        const val TRACK_CHANGE_DEBOUNCE_MS = 450L
+        const val ART_RETRY_DELAY_MS = 500L
+        const val MAX_ART_RETRIES = 8
         const val POSITION_TOLERANCE_MS = 1_500L
         const val MAX_ART_BYTES = 8L * 1024 * 1024
         const val ART_TARGET_PX = 640
